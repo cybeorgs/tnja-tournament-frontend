@@ -33,6 +33,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit }: { initial: To
 
   const set = <K extends keyof TournamentInput>(key: K, value: TournamentInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
+  const allSelected = !!meta?.ageGroups.length && meta.ageGroups.every((g) => form.ageGroups.includes(g.name));
   const toggleAgeGroup = (name: string) =>
     set("ageGroups", form.ageGroups.includes(name) ? form.ageGroups.filter((g) => g !== name) : [...form.ageGroups, name]);
 
@@ -90,8 +91,17 @@ export function TournamentForm({ initial, submitLabel, onSubmit }: { initial: To
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold text-slate-600">Age groups</p>
+        <p className="mb-2 text-[13px] font-medium text-slate-700">Age groups</p>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => meta && set("ageGroups", allSelected ? [] : meta.ageGroups.map((g) => g.name))}
+            title={allSelected ? "Clear all" : "Select every age group"}
+            aria-pressed={allSelected}
+            className={cx("rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", allSelected ? "border-brand bg-brand text-white" : "border-dashed border-brand/50 bg-brand-soft text-brand hover:border-brand")}
+          >
+            All
+          </button>
           {meta?.ageGroups.map((g) => {
             const on = form.ageGroups.includes(g.name);
             return (
