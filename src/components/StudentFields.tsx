@@ -280,7 +280,7 @@ function Segmented({ value, options, onChange, disabled }: { value: string; opti
   );
 }
 
-function PhoneInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function PhoneInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="relative">
       <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm text-slate-400">+91</span>

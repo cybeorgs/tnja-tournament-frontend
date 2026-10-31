@@ -7,7 +7,8 @@ import { useApi, useMeta } from "@/lib/hooks";
 import { titleCase } from "@/lib/format";
 import type { Official, Paged, Referee, TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, cx } from "@/components/ui";
-import { RefereeFields, emptyReferee, type RefereeInput } from "@/components/RefereeFields";
+import { RefereeFields, emptyReferee, validateReferee, type RefereeInput } from "@/components/RefereeFields";
+import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage, useToast } from "@/components/Toast";
 import { IconButton } from "./RegistrationsTab";
 
@@ -136,6 +137,7 @@ function AssignModal({ tournament, assignedIds, roles, onClose, onSaved }: { tou
   const [role, setRole] = useState(roles[0] ?? "REFEREE");
   const [mat, setMat] = useState("");
   const [saving, setSaving] = useState(false);
+  const emailOtp = useEmailOtp();
 
   useEffect(() => {
     if (mode !== "existing") return;
@@ -150,8 +152,9 @@ function AssignModal({ tournament, assignedIds, roles, onClose, onSaved }: { tou
     try {
       let refereeId = picked?.id;
       if (mode === "new") {
-        if (newReferee.fullName.trim().length < 2) throw new Error("Enter the referee's name.");
-        refereeId = (await api<Referee>("/referees", { body: newReferee })).id;
+        const problem = validateReferee(newReferee) ?? (!emailOtp.tokenFor(newReferee.email) ? "Please verify the email with the code we send." : null);
+        if (problem) throw new Error(problem);
+        refereeId = (await api<Referee>("/referees", { body: { ...newReferee, emailVerificationToken: emailOtp.tokenFor(newReferee.email) } })).id;
       }
       if (!refereeId) throw new Error("Pick a referee.");
       await api(`/tournaments/${tournament.id}/officials`, { body: { refereeId, role, matNumber: mat ? Number(mat) : null } });
@@ -219,7 +222,7 @@ function AssignModal({ tournament, assignedIds, roles, onClose, onSaved }: { tou
         </div>
       ) : (
         <div className="mb-5">
-          <RefereeFields value={newReferee} onChange={setNewReferee} />
+          <RefereeFields value={newReferee} onChange={setNewReferee} emailOtp={emailOtp} />
         </div>
       )}
 

@@ -3,22 +3,35 @@
 import { ShieldCheck } from "lucide-react";
 import type { Referee } from "@/lib/types";
 import { PeopleList } from "@/components/PeopleList";
-import { RefereeFields, emptyReferee, type RefereeInput } from "@/components/RefereeFields";
+import { useEmailOtp } from "@/components/EmailOtpField";
+import { RefereeFields, emptyReferee, validateReferee, type RefereeInput } from "@/components/RefereeFields";
+
+/** The form plus the email on file when editing (keeping it needs no new code). */
+type RefereeForm = RefereeInput & { savedEmail?: string };
+
+const sameEmail = (a = "", b = "") => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export default function RefereesPage() {
+  const emailOtp = useEmailOtp();
   return (
-    <PeopleList<Referee, RefereeInput>
+    <PeopleList<Referee, RefereeForm>
       title="Referees"
       subtitle="Officials you can assign to any tournament."
       endpoint="/referees"
       noun="Referee"
       emptyHint="Add your first referee to get started."
       icon={<ShieldCheck size={40} />}
+      searchPlaceholder="Search name, district or phone"
       empty={emptyReferee}
-      toForm={(r) => ({ fullName: r.fullName, grade: r.grade, district: r.district, phone: r.phone, email: r.email })}
-      toBody={(f) => f}
-      validate={(f) => (f.fullName.trim().length < 2 ? "Enter the referee's name." : null)}
-      renderForm={(value, onChange) => <RefereeFields value={value} onChange={onChange} />}
+      toForm={(r) => ({ fullName: r.fullName, grade: r.grade, district: r.district, phone: r.phone, email: r.email, savedEmail: r.email })}
+      toBody={(f) => ({ ...f, savedEmail: undefined, emailVerificationToken: emailOtp.tokenFor(f.email) ?? undefined })}
+      validate={(f) =>
+        validateReferee(f) ??
+        (!sameEmail(f.savedEmail, f.email) && !emailOtp.tokenFor(f.email) ? "Please verify the email with the code we send." : null)
+      }
+      renderForm={(value, onChange) => (
+        <RefereeFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} emailOtp={emailOtp} savedEmail={value.savedEmail} />
+      )}
       columns={[
         { header: "Name", cell: (r) => <span className="font-semibold text-slate-800">{r.fullName}</span> },
         { header: "Grade", cell: (r) => r.grade || "—" },
