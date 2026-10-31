@@ -8,7 +8,7 @@ import { api, openPdf } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { categoryLabel, formatDateRange, rupees, titleCase } from "@/lib/format";
 import type { Draw, Tournament } from "@/lib/types";
-import { Badge, Button, Card, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
 import { Bracket } from "@/components/Bracket";
 import { PublicShell } from "@/components/PublicShell";
 import { errorMessage, useToast } from "@/components/Toast";
@@ -57,7 +57,7 @@ export default function PublicTournamentPage() {
             </div>
             {t.status === "PUBLISHED" && t.registrationOpen && (
               <Link href={`/enter?t=${t.slug}`} className="no-print mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark">
-                <Trophy size={16} /> Enter this tournament
+                <Trophy size={16} /> Register for this tournament
               </Link>
             )}
           </section>
@@ -223,7 +223,7 @@ function CertificatesTab({ t }: { t: PublicDetail }) {
       <form onSubmit={lookup} className="space-y-3">
         <Field label="Full name"><Input value={name} onChange={(e) => setName(e.target.value)} required /></Field>
         {kind === "student"
-          ? <Field label="Date of birth"><Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} required /></Field>
+          ? <Field label="Date of birth"><DateInput value={dob} onChange={setDob} required /></Field>
           : <Field label="Phone number" hint="The last 4 digits are enough"><Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required /></Field>}
         <Button type="submit" loading={searching} icon={<Search size={16} />} className="w-full">Find certificate</Button>
       </form>

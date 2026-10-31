@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, GraduationCap, Home, Loader2, MapPin, Medal, UserRound, Wallet } from "lucide-react";
-import type { Gender, Student } from "@/lib/types";
+import type { Gender, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, useLocations } from "@/lib/locations";
-import { Field, Input, Select, cx } from "./ui";
+import { DateInput, Field, Input, Select, cx } from "./ui";
 import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 
 /**
@@ -14,7 +14,7 @@ import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
  */
 export type StudentInput = {
   district: string; taluk: string; residingPincode: string;
-  fullName: string; fatherName: string; motherName: string; gender: Gender | ""; dob: string;
+  fullName: string; fatherName: string; motherName: string; gender: StudentGender | ""; dob: string;
   bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; email: string; nationality: string;
   address: string; city: string; state: string; pincode: string;
   annualIncome: string;
@@ -63,6 +63,7 @@ export function validateStudent(f: StudentInput): string | null {
   return null;
 }
 
+const GENDERS = [{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Female" }, { value: "OTHER", label: "Other" }];
 const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "B+ve", "B-ve", "AB+ve", "AB-ve"];
 const STANDARDS = Array.from({ length: 12 }, (_, i) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"} Standard`);
 const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
@@ -142,14 +143,14 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, savedEmai
         </Field>
         <Field label="Gender" required group>
           <Segmented
-            value={lockGender ?? value.gender}
-            disabled={!!lockGender}
-            options={[{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Female" }]}
-            onChange={(g) => set("gender", g as Gender)}
+            value={value.gender}
+            // A boys-only or girls-only tournament still accepts students who identify as Other.
+            options={GENDERS.filter((g) => !lockGender || g.value === lockGender || g.value === "OTHER")}
+            onChange={(g) => set("gender", g as StudentGender)}
           />
         </Field>
         <Field label="Date of birth" required hint={age !== null ? `${age} years old` : undefined}>
-          <Input type="date" max={latestDob} value={value.dob} onChange={(e) => set("dob", e.target.value)} />
+          <DateInput max={latestDob} value={value.dob} onChange={(v) => set("dob", v)} />
         </Field>
         <Field label="Blood group" required>
           <Select value={value.bloodGroup} onChange={(e) => set("bloodGroup", e.target.value)}>

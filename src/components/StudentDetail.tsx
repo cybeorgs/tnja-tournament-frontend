@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useApi } from "@/lib/hooks";
-import { formatDate, rupees, titleCase } from "@/lib/format";
+import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
 import type { StudentDetail as Detail } from "@/lib/types";
 import { Badge, EmptyState, Modal, Spinner } from "./ui";
 
@@ -30,7 +30,7 @@ function Body({ id }: { id: string }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-lg font-bold text-slate-900">{s.fullName}</p>
-          <p className="text-sm text-slate-500">{s.gender === "MALE" ? "Male" : "Female"} · {formatDate(s.dob)}</p>
+          <p className="text-sm text-slate-500">{GENDER_LABEL[s.gender]} · {formatDate(s.dob)}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-xs font-semibold text-brand ring-1 ring-orange-200">{s.studentNo}</span>
             <Badge color={self ? "blue" : "slate"}>{self ? "Self-registered" : "Added by admin"}</Badge>

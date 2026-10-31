@@ -5,7 +5,7 @@ import { Search, UserPlus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useMeta } from "@/lib/hooks";
 import { eligibleAgeGroups, weightClassFor, weightClassesFor } from "@/lib/categories";
-import { formatDate } from "@/lib/format";
+import { GENDER_LABEL, formatDate } from "@/lib/format";
 import type { Gender, Paged, Registration, Student, TournamentDetail } from "@/lib/types";
 import { Button, Field, Input, Modal, Select, cx } from "@/components/ui";
 import { StudentFields, emptyStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
@@ -29,6 +29,8 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   // When editing, keep the saved class (it may have been chosen by hand) until the organiser unticks this.
   const [manualClass, setManualClass] = useState(!!editing);
   const [overrideAge, setOverrideAge] = useState(false);
+  /** Boys' or girls' categories, for students whose gender is Other */
+  const [competeAs, setCompeteAs] = useState<Gender | "">(editing?.gender ?? lockGender ?? "");
   const [saving, setSaving] = useState(false);
   const emailOtp = useEmailOtp();
 
@@ -42,7 +44,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   }, [query, mode, editing]);
 
   const person = useMemo(
-    () => (mode === "existing" || editing ? picked : newStudent.dob && newStudent.gender ? { dob: newStudent.dob, gender: newStudent.gender as Gender } : null),
+    () => (mode === "existing" || editing ? picked : newStudent.dob && newStudent.gender ? { dob: newStudent.dob, gender: newStudent.gender } : null),
     [mode, editing, picked, newStudent.dob, newStudent.gender],
   );
   const eligible = useMemo(
@@ -52,8 +54,11 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   // Until the organiser picks one, default to the first age group the student is eligible for.
   const ageGroup = chosenAgeGroup || eligible[0] || "";
 
-  const classes = meta && person && ageGroup ? weightClassesFor(meta, ageGroup, person.gender) : [];
-  const autoClass = meta && person && ageGroup ? weightClassFor(meta, ageGroup, person.gender, Number(weight)) : "";
+  const isOther = person?.gender === "OTHER";
+  /** The categories (boys' or girls') this entry goes in. */
+  const catGender: Gender | null = !person ? null : isOther ? lockGender ?? (competeAs || null) : (person.gender as Gender);
+  const classes = meta && catGender && ageGroup ? weightClassesFor(meta, ageGroup, catGender) : [];
+  const autoClass = meta && catGender && ageGroup ? weightClassFor(meta, ageGroup, catGender, Number(weight)) : "";
   const effectiveClass = manualClass ? weightCategory : autoClass;
   const ageMismatch = !!person && !!ageGroup && !eligible.includes(ageGroup);
 
@@ -64,10 +69,11 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
       if (!emailOtp.tokenFor(newStudent.email)) return toast("Verify the student's email address — send the code and enter it.", false);
     }
     if (!person) return toast("Pick or enter a student first.", false);
+    if (!catGender) return toast("Choose boys' or girls' categories.", false);
     if (!ageGroup) return toast("Choose an age group.", false);
     if (!Number(weight)) return toast("Enter the weight in kg.", false);
     setSaving(true);
-    const body = { ageGroup, weightKg: Number(weight), weightCategory: manualClass ? weightCategory : undefined, overrideAge };
+    const body = { ageGroup, weightKg: Number(weight), weightCategory: manualClass ? weightCategory : undefined, overrideAge, competeAs: isOther ? catGender : undefined };
     try {
       if (editing) {
         await api(`/tournaments/${tournament.id}/registrations/${editing.id}`, { method: "PUT", body });
@@ -127,7 +133,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
               </li>
             )}
             {results.map((s) => {
-              const blocked = !!lockGender && s.gender !== lockGender;
+              const blocked = !!lockGender && s.gender !== lockGender && s.gender !== "OTHER";
               return (
                 <li key={s.id}>
                   <button
@@ -139,7 +145,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
                       <span className="block truncate font-semibold text-slate-800">{s.fullName}</span>
                       <span className="block truncate text-xs text-slate-500"><span className="font-mono">{s.studentNo}</span>{[s.club, s.district].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
                     </span>
-                    <span className="shrink-0 text-xs text-slate-500">{s.gender === "MALE" ? "M" : "F"} · {formatDate(s.dob)}</span>
+                    <span className="shrink-0 text-xs text-slate-500">{GENDER_LABEL[s.gender]} · {formatDate(s.dob)}</span>
                   </button>
                 </li>
               );
@@ -158,6 +164,15 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
         <div className="rounded-xl bg-slate-50 p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Category</p>
           <div className="grid gap-3 sm:grid-cols-3">
+            {isOther && (
+              <Field label="Compete in" className="sm:col-span-3">
+                <Select value={lockGender ?? competeAs} disabled={!!lockGender} onChange={(e) => { setCompeteAs(e.target.value as Gender); setWeightCategory(""); }}>
+                  <option value="">Select</option>
+                  <option value="MALE">Boys&apos; categories</option>
+                  <option value="FEMALE">Girls&apos; categories</option>
+                </Select>
+              </Field>
+            )}
             <Field label="Age group" hint={eligible.length ? `Eligible: ${eligible.join(", ")}` : "Not eligible for any age group here by birth year"}>
               <Select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}>
                 <option value="">Select</option>

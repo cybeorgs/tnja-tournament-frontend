@@ -19,7 +19,7 @@ async function errorFrom(res: Response): Promise<ApiError> {
   const message = (body && (body.error || body.message)) || `Request failed (${res.status})`;
   if (res.status === 401 && typeof window !== "undefined" && auth.getToken()) {
     auth.clear();
-    if (window.location.pathname !== "/") window.location.href = "/";
+    if (window.location.pathname !== "/login") window.location.href = "/login";
   }
   return new ApiError(res.status, message);
 }

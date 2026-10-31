@@ -25,6 +25,8 @@ export const PLACEMENT_LABEL: Record<Placement, string> = {
   PARTICIPATION: "Participant",
 };
 
+export const GENDER_LABEL: Record<string, string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
+
 export const titleCase = (s: string) => s.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const WIN_METHOD_LABEL: Record<string, string> = {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Users } from "lucide-react";
-import { formatDate } from "@/lib/format";
+import { GENDER_LABEL, formatDate } from "@/lib/format";
 import type { Student } from "@/lib/types";
 import { Badge } from "@/components/ui";
 import { PeopleList } from "@/components/PeopleList";
@@ -50,7 +50,7 @@ export default function StudentsPage() {
               </button>
             ),
           },
-          { header: "Gender", cell: (s) => (s.gender === "MALE" ? "Male" : "Female") },
+          { header: "Gender", cell: (s) => GENDER_LABEL[s.gender] },
           { header: "Born", cell: (s) => <span className="whitespace-nowrap">{formatDate(s.dob)}</span> },
           { header: "Club / District", cell: (s) => <span className="text-slate-600">{[s.club, s.district].filter(Boolean).join(", ") || "—"}</span> },
           { header: "Tournaments", cell: (s) => s._count?.registrations ?? 0, className: "text-center" },

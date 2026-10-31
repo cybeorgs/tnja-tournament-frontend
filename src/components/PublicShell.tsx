@@ -7,10 +7,8 @@ import { useSettings } from "@/lib/hooks";
 import { Brand } from "./Brand";
 import { cx } from "./ui";
 
-const LINKS = [
-  { href: "/register", label: "Register", hideOnMobile: true },
-  { href: "/enter", label: "Enter" },
-  { href: "/verify", label: "Verify", hideOnMobile: true },
+const LINKS: { href: string; label: string; hideOnMobile?: boolean }[] = [
+  { href: "/enter", label: "Register" },
 ];
 
 export function PublicShell({ children }: { children: ReactNode }) {
@@ -38,7 +36,6 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
-            <Link href="/" className="ml-1 rounded-full bg-slate-900 px-4 py-2 text-white transition-all hover:bg-slate-700 active:scale-[0.97]">Sign in</Link>
           </nav>
         </div>
       </header>

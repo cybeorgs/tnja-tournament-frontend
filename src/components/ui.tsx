@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Loader2, X } from "lucide-react";
 
 const cx = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(" ");
 
@@ -69,6 +69,89 @@ const inputClass = cx(
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(inputClass, props.className)} />;
+}
+
+const toDisplay = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
+
+/** "DD/MM/YYYY" → "YYYY-MM-DD", or "" if incomplete or not a real date. */
+function toIso(text: string) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+  if (!m) return "";
+  const [, d, mo, y] = m;
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
+  return date.getUTCDate() === Number(d) && date.getUTCMonth() === Number(mo) - 1 ? `${y}-${mo}-${d}` : "";
+}
+
+/** Digits → "DD/MM/YYYY" as the user types. */
+const maskDate = (raw: string) => {
+  const d = raw.replace(/\D/g, "").slice(0, 8);
+  return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join("/");
+};
+
+/**
+ * Date field that always shows DD/MM/YYYY (the native date input follows the browser's locale).
+ * `value` / `onChange` use YYYY-MM-DD like <input type="date">; "" while incomplete.
+ */
+export function DateInput({ value, onChange, min, max, required, autoFocus, className }: {
+  value: string; onChange: (iso: string) => void; min?: string; max?: string; required?: boolean; autoFocus?: boolean; className?: string;
+}) {
+  const [text, setText] = useState(() => toDisplay(value));
+  const [seen, setSeen] = useState(value);
+  const picker = useRef<HTMLInputElement>(null);
+
+  // Follow changes made from outside (e.g. the form being reset or filled in).
+  if (value !== seen) {
+    setSeen(value);
+    if (toIso(text) !== value) setText(toDisplay(value));
+  }
+
+  const iso = toIso(text);
+  const outOfRange = !!iso && ((!!min && iso < min) || (!!max && iso > max));
+  const invalid = text.length === 10 && (!iso || outOfRange);
+
+  return (
+    <div className="relative">
+      <input
+        inputMode="numeric"
+        placeholder="DD/MM/YYYY"
+        value={text}
+        required={required}
+        autoFocus={autoFocus}
+        pattern="\d{2}/\d{2}/\d{4}"
+        aria-invalid={invalid || undefined}
+        onChange={(e) => {
+          const next = maskDate(e.target.value);
+          setText(next);
+          onChange(toIso(next));
+        }}
+        className={cx(inputClass, "pr-11 tabular-nums", className)}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Open calendar"
+        onClick={() => picker.current?.showPicker?.()}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-slate-400 transition-colors hover:text-brand"
+      >
+        <CalendarDays size={17} />
+      </button>
+      {/* Native picker, kept invisible: it only supplies the calendar pop-up. */}
+      <input
+        ref={picker}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        value={iso}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          setText(toDisplay(e.target.value));
+          onChange(e.target.value);
+        }}
+        className="pointer-events-none absolute bottom-0 right-0 h-px w-px opacity-0"
+      />
+    </div>
+  );
 }
 
 export function Select({ children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {

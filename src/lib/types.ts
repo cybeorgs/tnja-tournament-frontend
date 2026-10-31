@@ -1,4 +1,6 @@
+/** Competition categories are boys' or girls' only. */
 export type Gender = "MALE" | "FEMALE";
+export type StudentGender = Gender | "OTHER";
 export type Placement = "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION";
 export type TournamentStatus = "DRAFT" | "PUBLISHED" | "COMPLETED";
 
@@ -59,7 +61,8 @@ export interface Student {
   fatherName: string;
   motherName: string;
   dob: string;
-  gender: Gender;
+  /** OTHER students choose boys' or girls' categories when they enter a tournament */
+  gender: StudentGender;
   club: string;
   district: string;
   belt: string;

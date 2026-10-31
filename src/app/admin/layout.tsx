@@ -29,14 +29,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth.getToken()) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
     api<{ name: string; username: string }>("/auth/me")
       .then(setAdmin)
       .catch(() => {
         auth.clear();
-        router.replace("/");
+        router.replace("/login");
       });
   }, [router]);
 
@@ -44,7 +44,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const logout = () => {
     auth.clear();
-    router.replace("/");
+    router.replace("/login");
   };
 
   const nav = (

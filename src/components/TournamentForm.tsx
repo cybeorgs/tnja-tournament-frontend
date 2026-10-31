@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useMeta } from "@/lib/hooks";
 import { titleCase, toDateInput } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
-import { Button, Field, Input, Select, Textarea, cx } from "./ui";
+import { Button, DateInput, Field, Input, Select, Textarea, cx } from "./ui";
 
 export type TournamentInput = Pick<
   Tournament,
@@ -25,6 +25,19 @@ export function fromTournament(t: Tournament): TournamentInput {
   };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const utc = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
+
+/** YYYY-MM-DD plus `n` days. */
+const addDays = (iso: string, n: number) => new Date(utc(iso) + n * DAY_MS).toISOString().slice(0, 10);
+
+/** Length of the event in days, counting both ends; 1 when there is no (valid) end date. */
+function daysBetween(start: string, end: string | null) {
+  if (!start || !end) return 1;
+  const diff = Math.round((utc(end) - utc(start)) / DAY_MS);
+  return diff >= 0 ? diff + 1 : 1;
+}
+
 export function TournamentForm({ initial, submitLabel, onSubmit }: { initial: TournamentInput; submitLabel: string; onSubmit: (data: TournamentInput) => Promise<void> }) {
   const meta = useMeta();
   const [form, setForm] = useState(initial);
@@ -33,6 +46,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit }: { initial: To
 
   const set = <K extends keyof TournamentInput>(key: K, value: TournamentInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
+  const days = daysBetween(form.startDate, form.endDate);
   const allSelected = !!meta?.ageGroups.length && meta.ageGroups.every((g) => form.ageGroups.includes(g.name));
   const toggleAgeGroup = (name: string) =>
     set("ageGroups", form.ageGroups.includes(name) ? form.ageGroups.filter((g) => g !== name) : [...form.ageGroups, name]);
@@ -64,12 +78,38 @@ export function TournamentForm({ initial, submitLabel, onSubmit }: { initial: To
         <Field label="City">
           <Input value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="e.g. Chennai" />
         </Field>
-        <Field label="Start date">
-          <Input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} required />
-        </Field>
-        <Field label="End date" hint="Leave empty for a one-day event">
-          <Input type="date" value={form.endDate ?? ""} min={form.startDate} onChange={(e) => set("endDate", e.target.value || null)} />
-        </Field>
+        <div className="grid gap-4 sm:col-span-2 sm:grid-cols-[1fr_9rem_1fr]">
+          <Field label="Start date">
+            <DateInput
+              value={form.startDate}
+              // Keep the length the same when the start moves.
+              onChange={(v) => setForm((f) => ({ ...f, startDate: v, endDate: v && days > 1 ? addDays(v, days - 1) : f.endDate }))}
+              required
+            />
+          </Field>
+          <Field label="Number of days">
+            <div className="relative">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={60}
+                value={form.startDate ? days : ""}
+                disabled={!form.startDate}
+                placeholder="—"
+                onChange={(e) => {
+                  const n = Math.min(60, Math.max(1, Math.floor(Number(e.target.value)) || 1));
+                  set("endDate", n > 1 ? addDays(form.startDate, n - 1) : null);
+                }}
+                className="pr-12"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-400">{days === 1 ? "day" : "days"}</span>
+            </div>
+          </Field>
+          <Field label="End date" hint={form.startDate && days === 1 ? "Same day" : undefined}>
+            <DateInput value={form.endDate ?? ""} min={form.startDate} onChange={(v) => set("endDate", v || null)} />
+          </Field>
+        </div>
         <Field label="Level">
           <Select value={form.level} onChange={(e) => set("level", e.target.value)}>
             {(meta?.levels ?? ["DISTRICT", "ZONAL", "STATE", "NATIONAL", "OPEN"]).map((l) => <option key={l} value={l}>{titleCase(l)}</option>)}
