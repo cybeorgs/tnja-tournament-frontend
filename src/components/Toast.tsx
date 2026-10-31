@@ -23,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg ${t.ok ? "bg-slate-900" : "bg-red-600"}`}
+            className={`animate-pop-in pointer-events-auto flex max-w-md items-start gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-xl shadow-slate-900/20 ${t.ok ? "bg-slate-900" : "bg-red-600"}`}
           >
             {t.ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-400" /> : <XCircle size={18} className="mt-0.5 shrink-0" />}
             <span>{t.message}</span>

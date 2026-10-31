@@ -188,8 +188,8 @@ function AssignModal({ tournament, assignedIds, roles, onClose, onSaved }: { tou
       {mode === "existing" ? (
         <div className="mb-5">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input autoFocus placeholder="Search by name, district or phone" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input autoFocus placeholder="Search name, district or phone" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-10" />
           </div>
           <ul className="mt-2 max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
             {results.length === 0 && (

@@ -45,7 +45,7 @@ export function DrawsTab({ tournament, onChange }: { tournament: TournamentDetai
   if (!categories?.length) {
     return (
       <Card>
-        <EmptyState icon={<Swords size={40} />} title="No categories yet">Register students first — each age group, gender and weight class becomes a category with its own draw.</EmptyState>
+        <EmptyState icon={<Swords size={40} />} title="No categories yet">Add students first. Each weight class gets its own draw.</EmptyState>
       </Card>
     );
   }
@@ -222,7 +222,7 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Format" hint="Auto: round robin for 5 or fewer, elimination with a bronze match above that">
+        <Field label="Format" hint="Auto picks round robin for 5 or fewer, otherwise elimination">
           <Select value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
             <option value="AUTO">Auto</option>
             <option value="ELIMINATION">Elimination (IJF seeding)</option>
@@ -252,7 +252,7 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
               </Select>
             ))}
           </div>
-          <p className="mt-1.5 text-xs text-slate-400">Seed 1 goes to the bottom, seed 2 to the top, seeds 3 and 4 to opposite quarters. Team-mates are kept apart where possible.</p>
+          <p className="mt-1.5 text-xs text-slate-400">Top seeds are kept apart, and so are team-mates where possible.</p>
         </div>
       )}
 
@@ -276,7 +276,7 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
           </>
         }
       >
-        <p className="text-sm text-slate-600">Results have already been recorded in this draw. Redrawing creates a fresh bracket and those results will be lost.</p>
+        <p className="text-sm text-slate-600">This draw has results. Redrawing will erase them.</p>
       </Modal>
     </div>
   );

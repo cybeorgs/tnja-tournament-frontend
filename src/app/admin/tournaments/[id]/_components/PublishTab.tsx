@@ -35,7 +35,7 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
       title: "Tournament page",
       done: tournament.status !== "DRAFT",
       text: tournament.status === "DRAFT"
-        ? "Only you can see this tournament. Publish it to show the details, categories, officials and live brackets on the public site."
+        ? "Only you can see it. Publish to show it on the public site."
         : "The public page is live with details, categories, officials and brackets.",
       action: tournament.status === "DRAFT"
         ? <Button icon={<Globe size={16} />} loading={busy === "publish"} onClick={() => run("publish", "Tournament published.")}>Publish tournament</Button>
@@ -46,7 +46,7 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
       title: "Results & certificates",
       done: tournament.resultsPublished,
       text: tournament.resultsPublished
-        ? "Medal tables are public, and students and referees can download their certificates and verify them by number."
+        ? "Medals go public and certificates can be downloaded."
         : `Shows medal winners of concluded categories (${s.concludedDraws}/${s.draws}) and lets students download certificates using their name and date of birth.`,
       action: tournament.resultsPublished
         ? <Button variant="secondary" icon={<EyeOff size={16} />} loading={busy === "hideResults"} onClick={() => run("hideResults", "Results hidden.")}>Hide results</Button>
@@ -58,7 +58,7 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
       done: tournament.status === "COMPLETED",
       text: tournament.status === "COMPLETED"
         ? "The tournament is closed and the entry list is locked."
-        : "When everything is over, mark the tournament completed. This also closes registration.",
+        : "Mark it completed when it's over. This closes entries.",
       action: tournament.status === "COMPLETED"
         ? <Button variant="secondary" icon={<Undo2 size={16} />} loading={busy === "reopen"} onClick={() => run("reopen", "Tournament reopened.")}>Reopen</Button>
         : <Button variant="secondary" icon={<Flag size={16} />} loading={busy === "complete"} onClick={() => run("complete", "Tournament marked completed.")}>Mark completed</Button>,

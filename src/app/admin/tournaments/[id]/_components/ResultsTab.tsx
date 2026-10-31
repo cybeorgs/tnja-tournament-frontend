@@ -48,7 +48,7 @@ export function ResultsTab({ tournament, onChange }: { tournament: TournamentDet
       <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold text-slate-800">{concluded} of {list.length} categories concluded</p>
-          <p className="text-xs text-slate-500">Certificates can be viewed and downloaded at any time. Concluding a category fixes its medals for the public results.</p>
+          <p className="text-xs text-slate-500">Conclude a category to lock its medals.</p>
         </div>
         <Button
           variant="secondary"
@@ -195,13 +195,13 @@ function CategoryResults({ tournamentId, draw, regById, onChange }: { tournament
           </>
         }
       >
-        <p className="text-sm text-slate-600">These placements will be saved and the bracket locked. You can reopen the category later if something needs fixing.</p>
+        <p className="text-sm text-slate-600">Medals will be saved and the bracket locked. You can reopen it later.</p>
         {!draw.complete && (
           <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
             {draw.matchesTotal - draw.matchesDone} match(es) haven&apos;t been played. The placements you picked by hand will be used.
           </p>
         )}
-        {edited && draw.complete && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">You changed some placements from what the bracket shows. Your choices will be used.</p>}
+        {edited && draw.complete && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">Your changes override the bracket.</p>}
       </Modal>
     </Card>
   );

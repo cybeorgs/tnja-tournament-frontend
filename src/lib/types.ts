@@ -56,6 +56,8 @@ export interface Student {
   /** Permanent student ID, e.g. TNJA-S-000123 */
   studentNo: string;
   fullName: string;
+  fatherName: string;
+  motherName: string;
   dob: string;
   gender: Gender;
   club: string;
@@ -74,7 +76,6 @@ export interface Student {
   state: string;
   pincode: string;
   annualIncome: number | null;
-  isBPL: boolean;
   institutionType: string;
   institutionName: string;
   grade: string;
@@ -87,7 +88,6 @@ export interface Student {
 
 export interface StudentDetail extends Student {
   registrations: (Registration & { tournament: { id: string; title: string; startDate: string } })[];
-  documents: { kind: "PHOTO" | "BPL_PROOF"; mime: string }[];
 }
 
 export interface Registration {

@@ -9,10 +9,10 @@ export default function RefereesPage() {
   return (
     <PeopleList<Referee, RefereeInput>
       title="Referees"
-      subtitle="Referees and technical officials you can assign to any tournament."
+      subtitle="Officials you can assign to any tournament."
       endpoint="/referees"
       noun="Referee"
-      emptyHint="Add referees here, or straight from a tournament's Referees tab."
+      emptyHint="Add your first referee to get started."
       icon={<ShieldCheck size={40} />}
       empty={emptyReferee}
       toForm={(r) => ({ fullName: r.fullName, grade: r.grade, district: r.district, phone: r.phone, email: r.email })}

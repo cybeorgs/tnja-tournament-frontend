@@ -26,8 +26,8 @@ export default function TournamentsPage() {
       <Card>
         <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input placeholder="Search by title, venue or city" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input placeholder="Search by title, venue or city" value={q} onChange={(e) => setQ(e.target.value)} className="bg-slate-50/60 pl-10 focus:bg-white" />
           </div>
           <Select value={status} onChange={(e) => setStatus(e.target.value)} className="sm:w-44">
             <option value="ALL">All statuses</option>

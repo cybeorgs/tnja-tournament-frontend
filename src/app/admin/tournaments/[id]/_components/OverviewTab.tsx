@@ -88,7 +88,7 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
 
         <Card className="border-red-100 p-5">
           <h2 className="text-sm font-bold text-red-700">Delete tournament</h2>
-          <p className="mb-3 mt-1 text-xs text-slate-500">Removes all entries, draws and results of this tournament. Students and referees stay in your master lists.</p>
+          <p className="mb-3 mt-1 text-xs text-slate-500">Deletes its entries, draws and results. Students and referees are kept.</p>
           <Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={() => setDeleteOpen(true)}>Delete…</Button>
         </Card>
       </div>

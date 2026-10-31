@@ -53,8 +53,8 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     <Card>
       <div className="flex flex-col gap-2 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search students" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input placeholder="Search students" value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
         </div>
         <Select value={category} onChange={(e) => setCategory(e.target.value)} className="lg:w-72">
           <option value="ALL">All categories ({registrations?.length ?? 0})</option>
@@ -65,7 +65,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         </Button>
       </div>
       {!tournament.registrationOpen && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration is closed, so the entry list is locked. Reopen it from the Overview tab to add students.</p>
+        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Entries are closed. Reopen them from Overview to add students.</p>
       )}
 
       {loading && !registrations ? (
@@ -74,7 +74,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         <EmptyState title="Could not load entries">{error}</EmptyState>
       ) : filtered.length === 0 ? (
         <EmptyState icon={<Users size={40} />} title={registrations?.length ? "No entries match" : "No students registered yet"}>
-          {registrations?.length ? "Try a different search." : "Register students one by one; each one's weight class is worked out from their weight."}
+          {registrations?.length ? "Try a different search." : "Weight class is worked out from each student's weight."}
         </EmptyState>
       ) : (
         <div className="overflow-x-auto">
@@ -217,7 +217,7 @@ function PaymentModal({ tournament, registration: r, onClose, onSaved }: { tourn
       {r.paymentStatus !== "PAID" && tournament.entryFee > 0 && (
         <>
           <Button className="w-full" loading={busy === "ONLINE"} onClick={online}>Collect online with Razorpay</Button>
-          <p className="mb-4 mt-1.5 text-center text-xs text-slate-400">Opens Razorpay checkout on this device — the student can pay by UPI, card or net banking.</p>
+          <p className="mb-4 mt-1.5 text-center text-xs text-slate-400">Pay by UPI, card or net banking on this device.</p>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" loading={busy === "PAIDCASH"} onClick={() => manual("PAID", "CASH")}>Paid in cash</Button>
             <Button variant="secondary" loading={busy === "PAIDUPI"} onClick={() => manual("PAID", "UPI")}>Paid by UPI</Button>

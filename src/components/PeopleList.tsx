@@ -13,10 +13,10 @@ import { errorMessage, useToast } from "./Toast";
  * Shared by the Students and Referees pages.
  */
 export function PeopleList<T extends { id: string; fullName: string }, F>({
-  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search",
+  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm,
 }: {
   title: string;
-  subtitle: string;
+  subtitle: ReactNode;
   endpoint: string;
   noun: string;
   emptyHint: string;
@@ -30,6 +30,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   /** Adds a "view" action to each row */
   onView?: (item: T) => void;
   searchPlaceholder?: string;
+  wideForm?: boolean;
 }) {
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -87,34 +88,34 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
       <Card>
         <div className="border-b border-slate-100 p-4">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input placeholder={searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input placeholder={searchPlaceholder} value={q} onChange={(e) => setQ(e.target.value)} className="bg-slate-50/60 pl-10 focus:bg-white" />
           </div>
         </div>
         {loading && !data ? (
           <Spinner />
         ) : error ? (
-          <EmptyState title="Could not load the list">{error}</EmptyState>
+          <EmptyState title="Couldn't load the list">{error}</EmptyState>
         ) : !data?.items.length ? (
-          <EmptyState icon={icon} title={debounced ? "Nobody matches that search" : `No ${title.toLowerCase()} yet`}>{debounced ? "Try another name." : emptyHint}</EmptyState>
+          <EmptyState icon={icon} title={debounced ? "No matches" : `No ${title.toLowerCase()} yet`}>{debounced ? "Try a different search." : emptyHint}</EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 <tr>
-                  {columns.map((c) => <th key={c.header} className={`px-4 py-2.5 ${c.className ?? ""}`}>{c.header}</th>)}
-                  <th className="px-4 py-2.5 text-right">Actions</th>
+                  {columns.map((c) => <th key={c.header} className={`px-5 py-3 ${c.className ?? ""}`}>{c.header}</th>)}
+                  <th className="px-5 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.items.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60">
-                    {columns.map((c) => <td key={c.header} className={`px-4 py-3 ${c.className ?? ""}`}>{c.cell(item)}</td>)}
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        {onView && <button onClick={() => onView(item)} className="rounded-lg p-2 text-slate-400 hover:bg-orange-50 hover:text-brand" aria-label="View"><Eye size={15} /></button>}
-                        <button onClick={() => open(item)} className="rounded-lg p-2 text-slate-400 hover:bg-orange-50 hover:text-brand" aria-label="Edit"><Pencil size={15} /></button>
-                        <button onClick={() => remove(item)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Delete"><Trash2 size={15} /></button>
+                  <tr key={item.id} className="group transition-colors hover:bg-brand-soft/40">
+                    {columns.map((c) => <td key={c.header} className={`px-5 py-3.5 ${c.className ?? ""}`}>{c.cell(item)}</td>)}
+                    <td className="px-5 py-3.5">
+                      <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                        {onView && <IconAction label="View" onClick={() => onView(item)}><Eye size={16} /></IconAction>}
+                        <IconAction label="Edit" onClick={() => open(item)}><Pencil size={16} /></IconAction>
+                        <IconAction label="Delete" danger onClick={() => remove(item)}><Trash2 size={16} /></IconAction>
                       </div>
                     </td>
                   </tr>
@@ -124,7 +125,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
           </div>
         )}
         {data && data.total > data.pageSize && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-500">
+          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm text-slate-500">
             <span>{data.total} total</span>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} icon={<ChevronLeft size={14} />}>Prev</Button>
@@ -137,8 +138,9 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
 
       <Modal
         open={!!editing}
+        wide={wideForm}
         onClose={() => setEditing(null)}
-        title={editing === "new" ? `Add ${noun.toLowerCase()}` : `Edit ${noun.toLowerCase()}`}
+        title={editing === "new" ? `New ${noun.toLowerCase()}` : `Edit ${noun.toLowerCase()}`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
@@ -149,5 +151,18 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
         {editing && renderForm(form, setForm)}
       </Modal>
     </div>
+  );
+}
+
+function IconAction({ label, danger, onClick, children }: { label: string; danger?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`rounded-lg p-2 text-slate-400 transition-colors ${danger ? "hover:bg-red-50 hover:text-red-600" : "hover:bg-white hover:text-brand hover:shadow-sm"}`}
+    >
+      {children}
+    </button>
   );
 }

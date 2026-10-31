@@ -132,7 +132,7 @@ export function MatchResultModal({ drawId, match, onClose, onSaved }: { drawId: 
           {(meta?.winMethods ?? Object.keys(WIN_METHOD_LABEL)).map((m) => <option key={m} value={m}>{WIN_METHOD_LABEL[m] ?? m}</option>)}
         </Select>
       </Field>
-      <p className="mt-3 text-xs text-slate-400">The winner moves to the next round automatically. Semi-final losers go to the bronze match.</p>
+      <p className="mt-3 text-xs text-slate-400">The winner moves on automatically.</p>
     </Modal>
   );
 }

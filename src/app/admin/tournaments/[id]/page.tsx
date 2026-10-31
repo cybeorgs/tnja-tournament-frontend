@@ -1,13 +1,12 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Award, Globe, LayoutGrid, ShieldCheck, Swords, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
 import { formatDateRange } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
-import { EmptyState, Spinner, cx } from "@/components/ui";
+import { BackLink, EmptyState, Spinner, cx } from "@/components/ui";
 import { TournamentStatusBadge } from "@/components/TournamentStatus";
 import { OverviewTab } from "./_components/OverviewTab";
 import { RegistrationsTab } from "./_components/RegistrationsTab";
@@ -48,8 +47,8 @@ export default function TournamentPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <Link href="/admin/tournaments" className="no-print text-sm text-slate-500 hover:text-brand">← Tournaments</Link>
-      <div className="mb-5 mt-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <BackLink href="/admin/tournaments">Tournaments</BackLink>
+      <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{tournament.title}</h1>
@@ -70,8 +69,8 @@ export default function TournamentPage() {
               aria-selected={tab === tabId}
               onClick={() => openTab(tabId)}
               className={cx(
-                "flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors",
-                tab === tabId ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-slate-800",
+                "-mb-px flex items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition-colors",
+                tab === tabId ? "border-brand text-brand" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800",
               )}
             >
               <Icon size={16} /> {label}

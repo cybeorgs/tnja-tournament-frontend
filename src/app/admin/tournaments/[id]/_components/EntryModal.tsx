@@ -8,7 +8,8 @@ import { eligibleAgeGroups, weightClassFor, weightClassesFor } from "@/lib/categ
 import { formatDate } from "@/lib/format";
 import type { Gender, Paged, Registration, Student, TournamentDetail } from "@/lib/types";
 import { Button, Field, Input, Modal, Select, cx } from "@/components/ui";
-import { StudentFields, emptyStudent, type StudentInput } from "@/components/StudentFields";
+import { StudentFields, emptyStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
+import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage, useToast } from "@/components/Toast";
 
 /** Add a new entry (existing or new student), or edit an entry's category. */
@@ -29,6 +30,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   const [manualClass, setManualClass] = useState(!!editing);
   const [overrideAge, setOverrideAge] = useState(false);
   const [saving, setSaving] = useState(false);
+  const emailOtp = useEmailOtp();
 
   // Search the master student list as the organiser types.
   useEffect(() => {
@@ -56,6 +58,11 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   const ageMismatch = !!person && !!ageGroup && !eligible.includes(ageGroup);
 
   async function save() {
+    if (!editing && mode === "new") {
+      const problem = validateStudent({ ...newStudent, gender: lockGender ?? newStudent.gender });
+      if (problem) return toast(problem, false);
+      if (!emailOtp.tokenFor(newStudent.email)) return toast("Verify the student's email address — send the code and enter it.", false);
+    }
     if (!person) return toast("Pick or enter a student first.", false);
     if (!ageGroup) return toast("Choose an age group.", false);
     if (!Number(weight)) return toast("Enter the weight in kg.", false);
@@ -67,7 +74,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
         toast("Entry updated.");
       } else {
         await api(`/tournaments/${tournament.id}/registrations`, {
-          body: mode === "existing" ? { ...body, studentId: picked!.id } : { ...body, student: { ...newStudent, gender: lockGender ?? newStudent.gender } },
+          body: mode === "existing" ? { ...body, studentId: picked!.id } : { ...body, student: { ...newStudent, gender: lockGender ?? newStudent.gender }, emailVerificationToken: emailOtp.tokenFor(newStudent.email) },
         });
         toast("Student registered.");
       }
@@ -109,8 +116,8 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
       {!editing && mode === "existing" && (
         <div className="mb-5">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input autoFocus placeholder="Search by name, club or phone" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input autoFocus placeholder="Search name, ID, club or phone" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-10" />
           </div>
           <ul className="mt-2 max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
             {results.length === 0 && (
@@ -130,7 +137,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-slate-800">{s.fullName}</span>
-                      <span className="block truncate text-xs text-slate-500">{[s.club, s.district].filter(Boolean).join(", ") || "—"}</span>
+                      <span className="block truncate text-xs text-slate-500"><span className="font-mono">{s.studentNo}</span>{[s.club, s.district].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
                     </span>
                     <span className="shrink-0 text-xs text-slate-500">{s.gender === "MALE" ? "M" : "F"} · {formatDate(s.dob)}</span>
                   </button>
@@ -143,7 +150,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
 
       {!editing && mode === "new" && (
         <div className="mb-5">
-          <StudentFields value={newStudent} onChange={setNewStudent} lockGender={lockGender} />
+          <StudentFields value={newStudent} onChange={setNewStudent} lockGender={lockGender} emailOtp={emailOtp} />
         </div>
       )}
 
@@ -153,7 +160,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Age group" hint={eligible.length ? `Eligible: ${eligible.join(", ")}` : "Not eligible for any age group here by birth year"}>
               <Select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)}>
-                <option value="">Select…</option>
+                <option value="">Select</option>
                 {tournament.ageGroups.map((g) => <option key={g} value={g}>{g}{eligible.includes(g) ? "" : " (outside age)"}</option>)}
               </Select>
             </Field>
@@ -163,7 +170,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
             <Field label="Weight class">
               {manualClass ? (
                 <Select value={weightCategory} onChange={(e) => setWeightCategory(e.target.value)}>
-                  <option value="">Select…</option>
+                  <option value="">Select</option>
                   {classes.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               ) : (

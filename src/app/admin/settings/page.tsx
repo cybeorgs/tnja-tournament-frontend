@@ -77,7 +77,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader title="Settings" subtitle="Your organisation's name, logo and signatories appear on the public site and on every certificate." />
+      <PageHeader title="Settings" subtitle="Shown on the public site and certificates." />
 
       <Card className="p-5 sm:p-6">
         <h2 className="mb-4 text-sm font-bold text-slate-800">Logo</h2>

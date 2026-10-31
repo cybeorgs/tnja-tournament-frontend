@@ -56,19 +56,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             key={href}
             href={href}
             className={cx(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active ? "bg-brand-soft text-brand" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+              active ? "bg-brand-soft font-semibold text-brand" : "text-slate-600 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-900",
             )}
           >
             <Icon size={18} /> {label}
           </Link>
         );
       })}
-      <div className="mt-auto space-y-1 border-t border-slate-100 pt-3">
-        <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600">
-          <LogOut size={18} /> Log out
+      <div className="mt-auto flex items-center gap-3 rounded-2xl bg-slate-50 p-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold uppercase text-white">{admin.username.charAt(0)}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{admin.username}</span>
+        <button onClick={logout} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Log out" title="Log out">
+          <LogOut size={17} />
         </button>
-        <p className="px-3 pt-2 text-xs text-slate-400">Signed in as {admin.username}</p>
       </div>
     </nav>
   );

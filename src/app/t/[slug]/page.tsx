@@ -192,7 +192,7 @@ function CertificatesTab({ t }: { t: PublicDetail }) {
   const [found, setFound] = useState<{ certificateNo: string; name: string } | null>(null);
   const [searching, setSearching] = useState(false);
 
-  if (!t.resultsPublished) return <Card><EmptyState icon={<Award size={40} />} title="Certificates not released yet">You can download your certificate here once the organiser publishes the results.</EmptyState></Card>;
+  if (!t.resultsPublished) return <Card><EmptyState icon={<Award size={40} />} title="Certificates not released yet">Certificates appear here once results are out.</EmptyState></Card>;
 
   async function lookup(e: FormEvent) {
     e.preventDefault();
