@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Users } from "lucide-react";
+import { FileSpreadsheet, Upload, Users } from "lucide-react";
+import { ImportStudentsModal } from "@/components/ImportStudentsModal";
+import { downloadFile } from "@/lib/api";
+import { errorMessage, useToast } from "@/components/Toast";
 import { GENDER_LABEL, formatDate } from "@/lib/format";
 import type { Paged, Student } from "@/lib/types";
-import { Badge, cx } from "@/components/ui";
+import { Badge, Button, cx } from "@/components/ui";
 import { PeopleList } from "@/components/PeopleList";
 import { StatusBadge, StudentDetailModal } from "@/components/StudentDetail";
 import { useApi } from "@/lib/hooks";
@@ -23,6 +26,19 @@ export default function StudentsPage() {
   const [version, setVersion] = useState(0);
   const { data: pending } = useApi<Paged<Student>>(`/students?pageSize=1&status=PENDING&v=${version}`);
   const emailOtp = useEmailOtp();
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      await downloadFile(`/students/export${tab === "PENDING" ? "?status=PENDING" : ""}`, "students.xlsx");
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setExporting(false);
+    }
+  }
   return (
     <>
       <PeopleList<Student, StudentForm>
@@ -41,6 +57,14 @@ export default function StudentsPage() {
               </button>
             ))}
           </div>
+        }
+        headerActions={
+          <>
+            <Button variant="secondary" icon={<Upload size={16} />} onClick={() => setImporting(true)}>Import</Button>
+            <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel}>
+              {tab === "PENDING" ? "Download waiting list" : "Download Excel"}
+            </Button>
+          </>
         }
         title="Students"
         subtitle={<>Students register themselves from <a href="/enter" target="_blank" className="font-semibold text-brand hover:underline">tournament registration</a>.</>}
@@ -80,6 +104,7 @@ export default function StudentsPage() {
           { header: "Tournaments", cell: (s) => s._count?.registrations ?? 0, className: "text-center" },
         ]}
       />
+      <ImportStudentsModal open={importing} onClose={() => setImporting(false)} onImported={() => setVersion((v) => v + 1)} />
       <StudentDetailModal studentId={viewing} onClose={() => setViewing(null)} onChanged={() => setVersion((v) => v + 1)} />
     </>
   );

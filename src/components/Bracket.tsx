@@ -116,10 +116,13 @@ export function Bracket({ draw, onMatchClick }: { draw: BracketDraw; onMatchClic
     );
   }
 
-  const main = draw.rounds.map((r) => r.filter((m) => !m.isBronze));
+  const main = draw.rounds.filter((r) => !r[0]?.repechage).map((r) => r.filter((m) => !m.isBronze));
   const bronze = draw.rounds.at(-1)?.find((m) => m.isBronze);
+  // Repechage formats: the repechage round, then the bronze round
+  const repechage = draw.rounds.filter((r) => r[0]?.repechage);
 
   return (
+    <div className="space-y-6">
     <div className="overflow-x-auto pb-2">
       <div className="flex min-w-max gap-6">
         {main.map((round, ri) => (
@@ -137,6 +140,29 @@ export function Bracket({ draw, onMatchClick }: { draw: BracketDraw; onMatchClic
           </div>
         ))}
       </div>
+    </div>
+    {repechage.length > 0 && (
+      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-amber-800">Repechage &amp; bronze medal</p>
+        <p className="mb-3 text-xs text-slate-500">
+          {draw.format === "DOUBLE_REPECHAGE"
+            ? "Quarter-final losers of each half meet; the winners fight the losing semi-finalist from the other half for two bronze medals."
+            : "After the final: the players the champion beat in the quarter- and semi-final meet; the winner fights the player the runner-up beat in the semi-final for bronze."}
+        </p>
+        <div className="overflow-x-auto pb-1">
+          <div className="flex min-w-max gap-6">
+            {repechage.map((round, ri) => (
+              <div key={ri} className="flex flex-col">
+                <p className="mb-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">{ri === 0 ? "Repechage" : "Bronze medal"}</p>
+                <div className="flex flex-1 flex-col justify-around gap-3">
+                  {round.filter((m) => !(m.slotA.isBye && m.slotB.isBye)).map((m) => <MatchCard key={m.matchId} match={m} onClick={onMatchClick} label={m.label} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

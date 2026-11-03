@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, CheckCircle2, IndianRupee } from "lucide-react";
 import { api } from "@/lib/api";
 import { useMeta, useNow } from "@/lib/hooks";
-import { weightClassFor } from "@/lib/categories";
+import { competitionAge, ownAgeGroup, weightClassFor } from "@/lib/categories";
 import { rupees } from "@/lib/format";
 import { openCheckout, type PaymentOrder } from "@/lib/razorpay";
 import { registrationPhase, type Gender, type StudentGender, type Tournament } from "@/lib/types";
@@ -24,6 +24,8 @@ interface CheckResult {
 }
 
 const isIn = (e: Entry) => e.paymentStatus !== "PENDING";
+/** "A", "A and B", "A, B and C" */
+const listJoin = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
 /**
  * Choose the age groups to enter (e.g. a cadet can enter Cadet, Junior and Senior), then pay for
@@ -79,6 +81,16 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
   const total = fresh.reduce((sum, g) => sum + feeFor(g), 0);
   const sameFee = fresh.every((g) => feeFor(g) === feeFor(fresh[0]!));
   const toggle = (g: string) => setPicked((p) => (p.includes(g) ? p.filter((x) => x !== g) : [...p, g]));
+  const selectable = check.ageGroups.filter((g) => !already.has(g));
+  const allPicked = selectable.length > 0 && selectable.every((g) => picked.includes(g));
+  const age = dob ? competitionAge(dob, tournament.startDate) : 0;
+  const own = meta && age ? ownAgeGroup(meta, age) : undefined;
+  const eligibilityNote =
+    own && check.ageGroups.length > 1
+      ? `Age ${age} (${own}): you can enter ${listJoin(check.ageGroups)}.`
+      : own && check.ageGroups.length === 1 && check.ageGroups[0] !== own
+        ? `Age ${age} (${own}): you can enter ${check.ageGroups[0]}.`
+        : "";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -164,10 +176,18 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
           </Field>
 
           <div>
-            <p className="mb-1.5 text-[13px] font-medium text-slate-700">
-              Categories <span className="text-brand">*</span>
-              {check.ageGroups.length > 1 && <span className="ml-1.5 font-normal text-slate-500">— pick one or more</span>}
-            </p>
+            <div className="mb-1.5 flex items-baseline justify-between gap-3">
+              <p className="text-[13px] font-medium text-slate-700">
+                Categories <span className="text-brand">*</span>
+                {check.ageGroups.length > 1 && <span className="ml-1.5 font-normal text-slate-500">— pick one or more</span>}
+              </p>
+              {selectable.length > 1 && (
+                <button type="button" onClick={() => setPicked(allPicked ? [] : selectable)} className="text-xs font-semibold text-brand hover:underline">
+                  {allPicked ? "Clear" : "Select all"}
+                </button>
+              )}
+            </div>
+            {eligibilityNote && <p className="mb-2 text-xs text-slate-500">{eligibilityNote}</p>}
             <div className="grid gap-2 sm:grid-cols-2">
               {check.ageGroups.map((g) => {
                 const entered = already.get(g);

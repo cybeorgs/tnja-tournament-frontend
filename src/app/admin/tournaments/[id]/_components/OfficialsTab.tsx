@@ -11,12 +11,17 @@ import { RefereeFields, emptyReferee, validateReferee, type RefereeInput } from 
 import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage, useToast } from "@/components/Toast";
 import { IconButton } from "./RegistrationsTab";
+import { TournamentFilters, distinct, matchesPlayer, matchesText, useFilters } from "@/components/TournamentFilters";
 
 export function OfficialsTab({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
   const toast = useToast();
   const meta = useMeta();
   const { data: officials, loading, error, reload } = useApi<Official[]>(`/tournaments/${tournament.id}/officials`);
   const [adding, setAdding] = useState(false);
+  const { filters, setFilters } = useFilters();
+  const shown = (officials ?? []).filter(
+    (o) => matchesPlayer(filters, { district: o.referee.district }) && matchesText(filters.q, o.referee.fullName, o.referee.grade, o.referee.email, o.referee.phone, o.role.replace(/_/g, " ")),
+  );
 
   const refresh = () => {
     reload();
@@ -73,6 +78,16 @@ export function OfficialsTab({ tournament, onChange }: { tournament: TournamentD
         </EmptyState>
       ) : (
         <div className="overflow-x-auto">
+          <TournamentFilters
+            fields={["search", "district"]}
+            filters={filters}
+            onChange={setFilters}
+            options={{ districts: distinct(officials.map((o) => o.referee.district)) }}
+            total={officials.length}
+            shown={shown.length}
+            searchPlaceholder="Search name, grade, role, email or phone"
+          />
+          {!shown.length && <p className="px-4 py-8 text-center text-sm text-slate-500">No referees match the filters.</p>}
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
@@ -83,7 +98,7 @@ export function OfficialsTab({ tournament, onChange }: { tournament: TournamentD
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {officials.map((o) => (
+              {shown.map((o) => (
                 <tr key={o.id}>
                   <td className="px-4 py-3">
                     <p className="font-semibold text-slate-800">{o.referee.fullName}</p>

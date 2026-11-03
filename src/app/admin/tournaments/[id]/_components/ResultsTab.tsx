@@ -5,10 +5,11 @@ import { Award, CheckCircle2, Download, Eye, FileStack, Lock, Medal, RotateCcw, 
 import { api, openPdf } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { PLACEMENT_LABEL, categoryLabel } from "@/lib/format";
-import type { Draw, Placement, Registration, TournamentDetail } from "@/lib/types";
+import { DRAW_FORMAT_LABEL, type Draw, type Placement, type Registration, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Modal, Select, Spinner, cx } from "@/components/ui";
 import { errorMessage, useToast } from "@/components/Toast";
 import { IconButton } from "./RegistrationsTab";
+import { TournamentFilters, categoryOptions, matchesCategory, matchesText, useFilters } from "@/components/TournamentFilters";
 
 const ORDER: Record<Placement, number> = { FIRST: 0, SECOND: 1, THIRD: 2, PARTICIPATION: 3 };
 const ROW_STYLE: Record<Placement, string> = {
@@ -29,6 +30,7 @@ export function ResultsTab({ tournament, onChange }: { tournament: TournamentDet
   const toast = useToast();
   const draws = useApi<Draw[]>(`/tournaments/${tournament.id}/draws`);
   const registrations = useApi<Registration[]>(`/tournaments/${tournament.id}/registrations`);
+  const { filters, setFilters } = useFilters();
 
   const refresh = () => {
     draws.reload();
@@ -42,6 +44,8 @@ export function ResultsTab({ tournament, onChange }: { tournament: TournamentDet
   const regById = new Map((registrations.data ?? []).map((r) => [r.id, r]));
   const list = draws.data ?? [];
   const concluded = list.filter((d) => d.isConcluded).length;
+  // Search finds a category by its name or by any player in it.
+  const shown = list.filter((d) => matchesCategory(filters, d) && matchesText(filters.q, categoryLabel(d), ...d.entrants.map((e) => regById.get(e.id)?.student.fullName)));
 
   return (
     <div className="space-y-6">
@@ -67,17 +71,32 @@ export function ResultsTab({ tournament, onChange }: { tournament: TournamentDet
           </EmptyState>
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          {list.map((d) => (
-            <CategoryResults
-              key={`${d.id}:${d.isConcluded}:${d.matchesDone}:${d.entrants.map((e) => regById.get(e.id)?.placement ?? d.placements[e.id]).join(",")}`}
-              tournamentId={tournament.id}
-              draw={d}
-              regById={regById}
-              onChange={refresh}
+        <>
+          <Card className="overflow-hidden">
+            <TournamentFilters
+              fields={["search", "gender", "ageGroup", "weight"]}
+              filters={filters}
+              onChange={setFilters}
+              options={categoryOptions(filters, list)}
+              total={list.length}
+              shown={shown.length}
+              searchPlaceholder="Search a player or a category"
+              className="border-b-0"
             />
-          ))}
-        </div>
+          </Card>
+          {!shown.length && <Card><EmptyState title="No categories match">Try other filters, or clear them.</EmptyState></Card>}
+          <div className="grid gap-6 xl:grid-cols-2">
+            {shown.map((d) => (
+              <CategoryResults
+                key={`${d.id}:${d.isConcluded}:${d.matchesDone}:${d.entrants.map((e) => regById.get(e.id)?.placement ?? d.placements[e.id]).join(",")}`}
+                tournamentId={tournament.id}
+                draw={d}
+                regById={regById}
+                onChange={refresh}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -137,7 +156,7 @@ function CategoryResults({ tournamentId, draw, regById, onChange }: { tournament
       <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
         <div className="min-w-0">
           <p className="truncate font-bold text-slate-800">{label}</p>
-          <p className="text-xs text-slate-500">{draw.matchesDone}/{draw.matchesTotal} matches · {draw.format === "ROUND_ROBIN" ? "Round robin" : "Elimination"}</p>
+          <p className="text-xs text-slate-500">{draw.matchesDone}/{draw.matchesTotal} matches · {DRAW_FORMAT_LABEL[draw.format] ?? draw.format}</p>
         </div>
         {draw.isConcluded ? <Badge color="green"><Lock size={11} /> Concluded</Badge> : draw.complete ? <Badge color="blue">All matches done</Badge> : <Badge color="orange">In progress</Badge>}
       </div>

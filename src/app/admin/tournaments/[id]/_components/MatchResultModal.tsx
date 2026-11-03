@@ -112,7 +112,7 @@ export function MatchResultModal({ drawId, match, onClose, onSaved }: { drawId: 
       open
       wide
       onClose={onClose}
-      title={match.isBronze ? "Bronze medal match" : `Round ${match.round} · Match ${match.matchNumber}`}
+      title={match.label ?? (match.isBronze ? "Bronze medal match" : `Round ${match.round} · Match ${match.matchNumber}`)}
       footer={
         <>
           {match.status === "COMPLETED" && (

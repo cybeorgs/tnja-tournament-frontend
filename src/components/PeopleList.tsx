@@ -13,7 +13,7 @@ import { errorMessage, useToast } from "./Toast";
  * Shared by the Students and Referees pages.
  */
 export function PeopleList<T extends { id: string; fullName: string }, F>({
-  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm, query = "", toolbar,
+  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm, query = "", toolbar, headerActions,
 }: {
   title: string;
   subtitle: ReactNode;
@@ -35,6 +35,8 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   query?: string;
   /** Shown above the search box, e.g. filter tabs */
   toolbar?: ReactNode;
+  /** Extra header buttons, before "Add …" */
+  headerActions?: ReactNode;
 }) {
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -88,7 +90,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title={title} subtitle={subtitle} actions={<Button icon={<Plus size={16} />} onClick={() => open("new")}>Add {noun.toLowerCase()}</Button>} />
+      <PageHeader title={title} subtitle={subtitle} actions={<div className="flex flex-wrap items-center gap-2">{headerActions}<Button icon={<Plus size={16} />} onClick={() => open("new")}>Add {noun.toLowerCase()}</Button></div>} />
       {toolbar}
       <Card>
         <div className="border-b border-slate-100 p-4">

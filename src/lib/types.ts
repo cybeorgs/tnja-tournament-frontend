@@ -21,7 +21,8 @@ export interface Settings {
 }
 
 export interface Meta {
-  ageGroups: { name: string; minAge: number; maxAge: number; weightClasses: Record<Gender, string[]> }[];
+  /** minAge–maxAge is the group's own band; younger players may play up into it from playUpFrom */
+  ageGroups: { name: string; minAge: number; maxAge: number; playUpFrom?: number; weightClasses: Record<Gender, string[]> }[];
   levels: string[];
   refereeRoles: string[];
   winMethods: string[];
@@ -157,6 +158,10 @@ export interface Registration {
   gender: Gender;
   weightKg: number;
   weightCategory: string;
+  /** PENDING (not weighed) | CLEARED (scale weight within the class) | DISQUALIFIED (left out of the draw) */
+  weighInStatus: WeighInStatus;
+  weighInKg: number | null;
+  weighedAt: string | null;
   placement: Placement | null;
   certificateNo: string | null;
   paymentStatus: "PENDING" | "PAID" | "WAIVED";
@@ -217,7 +222,21 @@ export interface Match {
   winMethod?: string;
   isBronze?: boolean;
   byeResolved?: boolean;
+  /** Repechage formats: a repechage or bronze-round match, filled from the main bracket */
+  repechage?: boolean;
+  /** e.g. "Repechage 1", "Bronze 2" */
+  label?: string;
 }
+
+export type DrawFormat = "ELIMINATION" | "REPECHAGE" | "DOUBLE_REPECHAGE" | "ROUND_ROBIN";
+export const DRAW_FORMAT_LABEL: Record<DrawFormat, string> = {
+  ELIMINATION: "Single elimination",
+  REPECHAGE: "Repechage",
+  DOUBLE_REPECHAGE: "Double repechage",
+  ROUND_ROBIN: "Round robin",
+};
+/** Repechage formats need quarter-finals: at least this many players */
+export const REPECHAGE_MIN = 5;
 
 export interface Entrant {
   id: string;
@@ -238,7 +257,7 @@ export interface Draw {
   ageGroup: string;
   gender: Gender;
   weightCategory: string;
-  format: "ELIMINATION" | "ROUND_ROBIN";
+  format: DrawFormat;
   matNumber: number;
   entrants: Entrant[];
   rounds: Match[][];
@@ -256,6 +275,8 @@ export interface CategorySummary {
   weightCategory: string;
   entrants: number;
   paid: number;
+  /** Weigh-in progress of the players taking part (disqualified ones are counted separately) */
+  weighIn: { cleared: number; pending: number; pendingPaid: number; disqualified: number };
   draw: null | {
     id: string;
     format: Draw["format"];
@@ -299,3 +320,5 @@ export const currentEntryFee = (t: ScheduleFields, now = new Date()) => (registr
 export function nextPhaseChange(t: ScheduleFields, now = new Date()): Date | null {
   return [t.registrationOpensAt, t.registrationClosesAt, t.startDate].map((d) => new Date(d)).find((d) => d > now) ?? null;
 }
+
+export type WeighInStatus = "PENDING" | "CLEARED" | "DISQUALIFIED";

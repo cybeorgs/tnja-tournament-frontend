@@ -50,6 +50,32 @@ export async function fetchObjectUrl(path: string): Promise<string> {
 }
 
 /** Fetch a PDF and either open it in a new tab or save it. */
+/** Upload a file as the raw request body (its name in X-Filename) and read the JSON reply. */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { ...headers(false), "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+    body: file,
+  });
+  if (!res.ok) throw await errorFrom(res);
+  return res.json() as Promise<T>;
+}
+
+/** Download a file from an authenticated endpoint (e.g. an Excel export). */
+export async function downloadFile(path: string, fallbackName: string) {
+  const res = await fetch(`${API_BASE}${path}`, { headers: headers(false) });
+  if (!res.ok) throw await errorFrom(res);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function openPdf(path: string, mode: "view" | "download", filename = "certificate.pdf") {
   // Open the tab inside the click handler so the popup blocker allows it.
   const tab = mode === "view" ? window.open("", "_blank") : null;

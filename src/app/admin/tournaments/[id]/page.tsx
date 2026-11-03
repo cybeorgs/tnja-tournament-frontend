@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
-import { Award, Globe, LayoutGrid, Mail, ShieldCheck, Swords, Users } from "lucide-react";
+import { Award, Globe, LayoutGrid, Mail, Scale, ShieldCheck, Swords, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
 import { formatDateRange } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
@@ -15,11 +15,13 @@ import { DrawsTab } from "./_components/DrawsTab";
 import { ResultsTab } from "./_components/ResultsTab";
 import { PublishTab } from "./_components/PublishTab";
 import { EmailsTab } from "./_components/EmailsTab";
+import { WeighInTab } from "./_components/WeighInTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
   { id: "students", label: "Students", icon: Users },
   { id: "referees", label: "Referees", icon: ShieldCheck },
+  { id: "weigh-in", label: "Weigh-In", icon: Scale },
   { id: "draws", label: "Draws & Matches", icon: Swords },
   { id: "results", label: "Results & Certificates", icon: Award },
   { id: "emails", label: "Emails", icon: Mail },
@@ -84,6 +86,7 @@ export default function TournamentPage() {
       {tab === "overview" && <OverviewTab tournament={tournament} onChange={reload} goTo={openTab} />}
       {tab === "students" && <RegistrationsTab tournament={tournament} onChange={reload} />}
       {tab === "referees" && <OfficialsTab tournament={tournament} onChange={reload} />}
+      {tab === "weigh-in" && <WeighInTab tournament={tournament} onChange={reload} />}
       {tab === "draws" && <DrawsTab tournament={tournament} onChange={reload} />}
       {tab === "results" && <ResultsTab tournament={tournament} onChange={reload} />}
       {tab === "publish" && <PublishTab tournament={tournament} onChange={reload} />}

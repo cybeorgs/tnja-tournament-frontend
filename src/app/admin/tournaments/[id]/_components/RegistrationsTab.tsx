@@ -1,25 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, IndianRupee, Mail, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
-import { api, openPdf } from "@/lib/api";
+import { Download, Eye, FileSpreadsheet, IndianRupee, Mail, Pencil, Plus, Trash2, Upload, Users } from "lucide-react";
+import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
 import { collectPayment } from "@/lib/razorpay";
 import { categoryLabel, formatDateTime, rupees, titleCase } from "@/lib/format";
 import { lateEntryFee, registrationPhase, type EmailKind, type Registration, type TournamentDetail } from "@/lib/types";
-import { Badge, Button, Card, EmptyState, Input, Modal, Select, Spinner } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Modal, Spinner } from "@/components/ui";
+import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
+import { ImportEntriesModal } from "./ImportEntriesModal";
 
 export function RegistrationsTab({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
   const toast = useToast();
   const { data: registrations, loading, error, reload } = useApi<Registration[]>(`/tournaments/${tournament.id}/registrations`);
-  const [q, setQ] = useState("");
-  const [category, setCategory] = useState("ALL");
+  const { filters, setFilters, active } = useFilters();
   const [editing, setEditing] = useState<Registration | null | "new">(null);
   const [paying, setPaying] = useState<Registration | null>(null);
   const [removing, setRemoving] = useState<Registration | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
   const phase = registrationPhase(tournament, useNow());
   const canAdd = phase === "OPEN" || phase === "LATE";
 
@@ -28,9 +31,28 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     onChange();
   };
 
-  const categories = useMemo(() => [...new Set((registrations ?? []).map(categoryLabel))], [registrations]);
-  const filtered = (registrations ?? []).filter(
-    (r) => (category === "ALL" || categoryLabel(r) === category) && `${r.student.fullName} ${r.student.club} ${r.student.district}`.toLowerCase().includes(q.toLowerCase()),
+  const all = useMemo(() => registrations ?? [], [registrations]);
+  const ageOf = (r: Registration) => tournamentAge(r.student.dob, tournament.startDate);
+  const options = useMemo(() => {
+    // Districts per state, so the district list follows the chosen state.
+    const districts: Record<string, string[]> = {};
+    for (const r of all) {
+      const state = r.student.state.trim();
+      if (state) districts[state] = distinct([...(districts[state] ?? []), r.student.district]);
+    }
+    return {
+      ...categoryOptions(filters, all),
+      ages: [...new Set(all.map(ageOf))].sort((a, b) => a - b),
+      states: distinct(all.map((r) => r.student.state)),
+      districts,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, filters.gender, filters.ageGroup, tournament.startDate]);
+  const filtered = all.filter(
+    (r) =>
+      matchesCategory(filters, r) &&
+      matchesPlayer(filters, { age: ageOf(r), state: r.student.state, district: r.student.district }) &&
+      matchesText(filters.q, r.student.fullName, r.student.email, r.student.studentNo, r.student.club, r.student.district, r.student.phone),
   );
 
   async function remove() {
@@ -48,24 +70,49 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     }
   }
 
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      await downloadFile(`/tournaments/${tournament.id}/registrations/export`, `${tournament.slug}_entries.xlsx`);
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const certificate = (r: Registration, mode: "view" | "download") =>
     openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/certificate`, mode, `${r.student.fullName}_certificate.pdf`).catch((err) => toast(errorMessage(err), false));
 
   return (
     <Card>
-      <div className="flex flex-col gap-2 border-b border-slate-100 p-4 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search students" value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
-        </div>
-        <Select value={category} onChange={(e) => setCategory(e.target.value)} className="lg:w-72">
-          <option value="ALL">All categories ({registrations?.length ?? 0})</option>
-          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </Select>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <p className="text-sm font-bold text-slate-800">Entries</p>
+        <div className="flex flex-wrap items-center gap-2">
+        {all.length > 0 && (
+          <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel} title="Every entry with the student's details, category, weigh-in and payment">
+            Download Excel
+          </Button>
+        )}
+        <Button variant="secondary" icon={<Upload size={16} />} onClick={() => setImporting(true)} disabled={!canAdd} title={canAdd ? "Enter many students from an Excel file" : "Registration isn't open — see the dates in Overview"}>
+          Import
+        </Button>
         <Button icon={<Plus size={16} />} onClick={() => setEditing("new")} disabled={!canAdd} title={canAdd ? "" : "Registration isn't open — see the dates in Overview"}>
           {phase === "LATE" ? "Late entry" : "Register student"}
         </Button>
+        </div>
       </div>
+      {all.length > 0 && (
+        <TournamentFilters
+          fields={["search", "gender", "ageGroup", "weight", "age", "state", "district"]}
+          filters={filters}
+          onChange={setFilters}
+          options={options}
+          total={all.length}
+          shown={filtered.length}
+          searchPlaceholder="Search name, email, student ID, club or phone"
+        />
+      )}
       {phase === "LATE" && (
         <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">
           Late registration until {formatDateTime(tournament.startDate)}. New entries are marked late and cost {tournament.entryFee > 0 ? rupees(lateEntryFee(tournament)) : "nothing"}.
@@ -84,7 +131,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         <EmptyState title="Could not load entries">{error}</EmptyState>
       ) : filtered.length === 0 ? (
         <EmptyState icon={<Users size={40} />} title={registrations?.length ? "No entries match" : "No students registered yet"}>
-          {registrations?.length ? "Try a different search." : "Weight class is worked out from each student's weight."}
+          {registrations?.length ? active ? "Try other filters, or clear them." : "Try a different search." : "Weight class is worked out from each student's weight."}
         </EmptyState>
       ) : (
         <div className="overflow-x-auto">
@@ -145,6 +192,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         </div>
       )}
 
+      <ImportEntriesModal tournament={tournament} open={importing} onClose={() => setImporting(false)} onImported={refresh} />
       {editing && (
         <EntryModal
           tournament={tournament}

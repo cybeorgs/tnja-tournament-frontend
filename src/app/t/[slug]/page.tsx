@@ -7,7 +7,7 @@ import { Award, CalendarDays, Download, Eye, IndianRupee, LayoutGrid, MapPin, Me
 import { api, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
-import { currentEntryFee, lateEntryFee, registrationPhase, type Draw, type Tournament } from "@/lib/types";
+import { DRAW_FORMAT_LABEL, currentEntryFee, lateEntryFee, registrationPhase, type Draw, type Tournament } from "@/lib/types";
 import { Badge, Button, Card, DateInput, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
 import { Bracket } from "@/components/Bracket";
 import { PublicShell } from "@/components/PublicShell";
@@ -144,7 +144,7 @@ function BracketsTab({ t }: { t: PublicDetail }) {
       </Field>
       {draw && (
         <>
-          <p className="mb-4 text-sm text-slate-500">{draw.format === "ROUND_ROBIN" ? "Round robin" : "Elimination"} · {draw.matchesDone}/{draw.matchesTotal} matches played{draw.isConcluded && " · Final"}</p>
+          <p className="mb-4 text-sm text-slate-500">{DRAW_FORMAT_LABEL[draw.format] ?? draw.format} · {draw.matchesDone}/{draw.matchesTotal} matches played{draw.isConcluded && " · Final"}</p>
           <Bracket draw={draw} />
         </>
       )}
