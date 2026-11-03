@@ -31,7 +31,6 @@ export default function TournamentsPage() {
           </div>
           <Select value={status} onChange={(e) => setStatus(e.target.value)} className="sm:w-44">
             <option value="ALL">All statuses</option>
-            <option value="DRAFT">Draft</option>
             <option value="PUBLISHED">Published</option>
             <option value="COMPLETED">Completed</option>
           </Select>

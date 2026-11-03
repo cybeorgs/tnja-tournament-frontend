@@ -133,7 +133,8 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
               </li>
             )}
             {results.map((s) => {
-              const blocked = !!lockGender && s.gender !== lockGender && s.gender !== "OTHER";
+              const pending = s.status !== "APPROVED";
+              const blocked = pending || (!!lockGender && s.gender !== lockGender && s.gender !== "OTHER");
               return (
                 <li key={s.id}>
                   <button
@@ -143,7 +144,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-slate-800">{s.fullName}</span>
-                      <span className="block truncate text-xs text-slate-500"><span className="font-mono">{s.studentNo}</span>{[s.club, s.district].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
+                      <span className="block truncate text-xs text-slate-500"><span className="font-mono">{pending ? (s.status === "PENDING" ? "Waiting for approval" : "Rejected") : s.studentNo}</span>{[s.club, s.district].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
                     </span>
                     <span className="shrink-0 text-xs text-slate-500">{GENDER_LABEL[s.gender]} · {formatDate(s.dob)}</span>
                   </button>

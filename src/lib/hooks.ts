@@ -48,3 +48,16 @@ export function useMeta() {
 export function useSettings() {
   return useApi<Settings>("/public/settings");
 }
+
+/**
+ * The current time, refreshed every `everyMs`, so pages that depend on a schedule (e.g. registration
+ * switching to late registration or closing) update on their own without a reload.
+ */
+export function useNow(everyMs = 30_000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), everyMs);
+    return () => clearInterval(timer);
+  }, [everyMs]);
+  return now;
+}

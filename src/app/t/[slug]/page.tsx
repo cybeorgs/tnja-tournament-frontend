@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Award, CalendarDays, Download, Eye, IndianRupee, LayoutGrid, MapPin, Medal, Search, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { api, openPdf } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
-import { categoryLabel, formatDateRange, rupees, titleCase } from "@/lib/format";
-import type { Draw, Tournament } from "@/lib/types";
+import { useApi, useNow } from "@/lib/hooks";
+import { categoryLabel, formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
+import { currentEntryFee, lateEntryFee, registrationPhase, type Draw, type Tournament } from "@/lib/types";
 import { Badge, Button, Card, DateInput, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
 import { Bracket } from "@/components/Bracket";
 import { PublicShell } from "@/components/PublicShell";
@@ -53,13 +53,8 @@ export default function PublicTournamentPage() {
               <span className="flex items-center gap-2"><CalendarDays size={16} className="text-brand" /> {formatDateRange(t.startDate, t.endDate)}</span>
               <span className="flex items-center gap-2"><MapPin size={16} className="text-brand" /> {[t.venue, t.city].filter(Boolean).join(", ")}</span>
               <span className="flex items-center gap-2"><Users size={16} className="text-brand" /> {t.entries} entries</span>
-              {t.entryFee > 0 && <span className="flex items-center gap-2"><IndianRupee size={16} className="text-brand" /> Entry fee {rupees(t.entryFee)}</span>}
             </div>
-            {t.status === "PUBLISHED" && t.registrationOpen && (
-              <Link href={`/enter?t=${t.slug}`} className="no-print mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark">
-                <Trophy size={16} /> Register for this tournament
-              </Link>
-            )}
+            <RegistrationStatus tournament={t} />
           </section>
 
           <div className="no-print -mx-4 mb-6 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
@@ -238,5 +233,47 @@ function CertificatesTab({ t }: { t: PublicDetail }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/** Where registration stands right now (it follows the schedule and updates on its own), with the fee and a Register button. */
+function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
+  const now = useNow();
+  const phase = registrationPhase(t, now);
+  const fee = (n: number) => (n > 0 ? rupees(n) : "free");
+  if (phase === "CLOSED") return null;
+
+  return (
+    <div className="no-print mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-sm">
+        {phase === "NOT_OPEN" && (
+          <>
+            <p className="font-semibold text-slate-900">Registration opens on {formatDateTime(t.registrationOpensAt)}</p>
+            <p className="mt-0.5 text-slate-500">Entry fee {fee(t.entryFee)} until {formatDateTime(t.registrationClosesAt)}, then {fee(lateEntryFee(t))}.</p>
+          </>
+        )}
+        {phase === "OPEN" && (
+          <>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><IndianRupee size={15} className="text-brand" /> Entry fee {fee(t.entryFee)}</p>
+            <p className="mt-0.5 text-slate-500">
+              Until {formatDateTime(t.registrationClosesAt)}.{t.entryFee > 0 && ` After that, late registration costs ${fee(lateEntryFee(t))}.`}
+            </p>
+          </>
+        )}
+        {phase === "LATE" && (
+          <>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900">
+              <Badge color="red">Late registration</Badge> Entry fee {fee(currentEntryFee(t, now))}
+            </p>
+            <p className="mt-0.5 text-slate-500">Open until the tournament starts on {formatDateTime(t.startDate)}.</p>
+          </>
+        )}
+      </div>
+      {(phase === "OPEN" || phase === "LATE") && (
+        <Link href={`/enter?t=${t.slug}`} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark">
+          <Trophy size={16} /> Register
+        </Link>
+      )}
+    </div>
   );
 }

@@ -42,6 +42,13 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return res.json() as Promise<T>;
 }
 
+/** Fetch an authenticated file (e.g. an uploaded document) as an object URL; revoke it when done. */
+export async function fetchObjectUrl(path: string): Promise<string> {
+  const res = await fetch(`${API_BASE}${path}`, { headers: headers(false) });
+  if (!res.ok) throw await errorFrom(res);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Fetch a PDF and either open it in a new tab or save it. */
 export async function openPdf(path: string, mode: "view" | "download", filename = "certificate.pdf") {
   // Open the tab inside the click handler so the popup blocker allows it.

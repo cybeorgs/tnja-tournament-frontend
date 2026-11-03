@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle, Trash2 } from "lucide-react";
+import { CalendarClock, CheckCircle2, Circle, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { rupees } from "@/lib/format";
-import type { TournamentDetail } from "@/lib/types";
-import { Button, Card, Field, Input, Modal } from "@/components/ui";
+import { formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
+import { useNow } from "@/lib/hooks";
+import { lateEntryFee, registrationPhase, type RegistrationPhase, type TournamentDetail } from "@/lib/types";
+import { Badge, Button, Card, Field, Input, Modal } from "@/components/ui";
 import { TournamentForm, fromTournament } from "@/components/TournamentForm";
 import { errorMessage, useToast } from "@/components/Toast";
 
@@ -18,6 +19,7 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const s = tournament.stats;
 
   const checklist: { done: boolean; label: string; tab: Tab }[] = [
@@ -25,7 +27,6 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
     { done: s.referees > 0, label: `Assign referees (${s.referees})`, tab: "referees" },
     { done: s.categories > 0 && s.draws >= s.categories, label: `Generate draws (${s.draws}/${s.categories} categories)`, tab: "draws" },
     { done: s.draws > 0 && s.concludedDraws >= s.draws, label: `Conclude categories (${s.concludedDraws}/${s.draws})`, tab: "results" },
-    { done: tournament.status !== "DRAFT", label: "Publish the tournament page", tab: "publish" },
     { done: tournament.resultsPublished, label: "Publish results & certificates", tab: "publish" },
   ];
 
@@ -44,30 +45,43 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <Card className="p-5 sm:p-6">
-        <h2 className="mb-4 text-sm font-bold text-slate-800">Tournament details</h2>
-        <TournamentForm
-          key={tournament.id + tournament.startDate}
-          initial={fromTournament(tournament)}
-          submitLabel="Save changes"
-          onSubmit={async (data) => {
-            await api(`/tournaments/${tournament.id}`, { method: "PUT", body: data });
-            toast("Saved.");
-            onChange();
-          }}
-        />
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold text-slate-800">{editing ? "Edit tournament" : "Tournament details"}</h2>
+          {!editing && <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={() => setEditing(true)}>Edit</Button>}
+        </div>
+        {editing ? (
+          <TournamentForm
+            initial={fromTournament(tournament)}
+            submitLabel="Save changes"
+            onCancel={() => setEditing(false)}
+            onSubmit={async (data) => {
+              await api(`/tournaments/${tournament.id}`, { method: "PUT", body: data });
+              toast("Saved.");
+              setEditing(false);
+              onChange();
+            }}
+          />
+        ) : (
+          <TournamentDetails tournament={tournament} onEditDates={() => setEditing(true)} />
+        )}
       </Card>
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Students", value: s.registrations },
-            { label: "Categories", value: s.categories },
-            { label: "Paid entries", value: `${s.paid}/${s.registrations}` },
-            { label: "Collected", value: rupees(s.collected) },
+            { label: "Registered players", value: s.players, sub: `${s.registrations} entries` },
+            { label: "Paid players", value: s.paidPlayers, sub: s.playersOwing ? `${s.playersOwing} still owe` : "All settled", tone: "text-emerald-600" },
+            { label: "Pending payments", value: s.pendingPayments, sub: s.pendingAmount ? `${rupees(s.pendingAmount)} due` : "Nothing due", tone: s.pendingPayments ? "text-amber-600" : undefined },
+            { label: "Total collected", value: rupees(s.collected), sub: `${s.paid} paid entries`, tone: "text-emerald-600" },
+            { label: "Regular registrations", value: s.regularEntries, sub: `Revenue ${rupees(s.regularRevenue)}` },
+            { label: "Late registrations", value: s.lateEntries, sub: `Revenue ${rupees(s.lateRevenue)}` },
+            { label: "Regular revenue", value: rupees(s.regularRevenue), sub: `Fee ${rupees(tournament.entryFee)}` },
+            { label: "Late revenue", value: rupees(s.lateRevenue), sub: `Fee ${rupees(tournament.lateEntryFee)}` },
           ].map((x) => (
             <Card key={x.label} className="p-4">
-              <p className="text-lg font-bold text-slate-900">{x.value}</p>
-              <p className="text-xs text-slate-500">{x.label}</p>
+              <p className={`text-lg font-bold ${x.tone ?? "text-slate-900"}`}>{x.value}</p>
+              <p className="text-xs font-medium text-slate-600">{x.label}</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">{x.sub}</p>
             </Card>
           ))}
         </div>
@@ -110,6 +124,66 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
           <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
         </Field>
       </Modal>
+    </div>
+  );
+}
+
+const GENDER_LABEL = { BOTH: "Boys and girls", MALE: "Boys / men only", FEMALE: "Girls / women only" } as const;
+const PHASE_LABEL: Record<RegistrationPhase, string> = { NOT_OPEN: "Not open yet", OPEN: "Open", LATE: "Late registration", CLOSED: "Closed" };
+const PHASE_COLOR = { NOT_OPEN: "slate", OPEN: "green", LATE: "red", CLOSED: "slate" } as const;
+const fee = (n: number) => (n > 0 ? rupees(n) : "Free");
+
+/** Read-only view of the tournament (Edit switches to the form), led by the live registration status. */
+function TournamentDetails({ tournament: t, onEditDates }: { tournament: TournamentDetail; onEditDates: () => void }) {
+  const now = useNow();
+  const phase = registrationPhase(t, now);
+  const status: Record<RegistrationPhase, string> = {
+    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)} at ${fee(t.entryFee)}.`,
+    OPEN: `Entries cost ${fee(t.entryFee)} until ${formatDateTime(t.registrationClosesAt)}, then ${fee(lateEntryFee(t))}.`,
+    LATE: `Late entries cost ${fee(lateEntryFee(t))} until the tournament starts on ${formatDateTime(t.startDate)}.`,
+    CLOSED: "No new entries or payments.",
+  };
+
+  return (
+    <>
+      <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Registration</p>
+          <p className="mt-1 flex flex-wrap items-center gap-2">
+            <Badge color={PHASE_COLOR[phase]}>{PHASE_LABEL[phase]}</Badge>
+            <span className="text-sm text-slate-600">{status[phase]}</span>
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" icon={<CalendarClock size={14} />} onClick={onEditDates} className="self-start sm:self-auto">Change dates</Button>
+      </div>
+
+      <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        <Detail label="Tournament title" wide>{t.title}</Detail>
+        <Detail label="Venue">{t.venue}</Detail>
+        <Detail label="City">{t.city || "—"}</Detail>
+        <Detail label="Starts">{formatDateTime(t.startDate)}</Detail>
+        <Detail label="Dates">{formatDateRange(t.startDate, t.endDate)}</Detail>
+        <Detail label="Registration opens">{formatDateTime(t.registrationOpensAt)}</Detail>
+        <Detail label="Regular registration closes">{formatDateTime(t.registrationClosesAt)}</Detail>
+        <Detail label="Deadline reminder email">{t.reminderAt ? formatDateTime(t.reminderAt) : "Not scheduled"}</Detail>
+        <Detail label="Entry fee">{fee(t.entryFee)}</Detail>
+        <Detail label="Late entry fee">{fee(lateEntryFee(t))}</Detail>
+        <Detail label="Level">{titleCase(t.level)}</Detail>
+        <Detail label="Open to">{GENDER_LABEL[t.gender]}</Detail>
+        <Detail label="Age groups" wide>
+          <span className="flex flex-wrap gap-1.5">{t.ageGroups.map((g) => <Badge key={g} color="orange">{g}</Badge>)}</span>
+        </Detail>
+        {t.description && <Detail label="Description" wide><span className="whitespace-pre-line">{t.description}</span></Detail>}
+      </dl>
+    </>
+  );
+}
+
+function Detail({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <div className={wide ? "sm:col-span-2" : undefined}>
+      <dt className="text-xs font-medium text-slate-500">{label}</dt>
+      <dd className="mt-1 text-sm font-semibold text-slate-900">{children}</dd>
     </div>
   );
 }

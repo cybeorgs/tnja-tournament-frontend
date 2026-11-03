@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, ExternalLink, EyeOff, Flag, Globe, Medal, Undo2 } from "lucide-react";
+import { Check, Copy, ExternalLink, EyeOff, Flag, Medal, Undo2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TournamentDetail } from "@/lib/types";
 import { Button, Card, cx } from "@/components/ui";
 import { errorMessage, useToast } from "@/components/Toast";
 
-type Action = "publish" | "unpublish" | "complete" | "reopen" | "publishResults" | "hideResults";
+type Action = "complete" | "reopen" | "publishResults" | "hideResults";
 
 export function PublishTab({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
   const toast = useToast();
@@ -30,17 +30,6 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
   }
 
   const steps = [
-    {
-      icon: Globe,
-      title: "Tournament page",
-      done: tournament.status !== "DRAFT",
-      text: tournament.status === "DRAFT"
-        ? "Only you can see it. Publish to show it on the public site."
-        : "The public page is live with details, categories, officials and brackets.",
-      action: tournament.status === "DRAFT"
-        ? <Button icon={<Globe size={16} />} loading={busy === "publish"} onClick={() => run("publish", "Tournament published.")}>Publish tournament</Button>
-        : <Button variant="secondary" icon={<EyeOff size={16} />} loading={busy === "unpublish"} onClick={() => run("unpublish", "Tournament is a draft again.")}>Unpublish</Button>,
-    },
     {
       icon: Medal,
       title: "Results & certificates",
@@ -67,8 +56,7 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      {tournament.status !== "DRAFT" && (
-        <Card className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
+      <Card className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-500">Public link</p>
             <p className="truncate font-mono text-sm text-slate-800">{publicUrl}</p>
@@ -86,7 +74,6 @@ export function PublishTab({ tournament, onChange }: { tournament: TournamentDet
             </a>
           </div>
         </Card>
-      )}
 
       {steps.map(({ icon: Icon, title, done, text, action }) => (
         <Card key={title} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">

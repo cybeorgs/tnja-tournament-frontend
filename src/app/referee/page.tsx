@@ -15,7 +15,7 @@ import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage } from "@/components/Toast";
 
 export default function RefereeRegistrationPage() {
-  const { tournaments, loading, error } = useOpenTournaments();
+  const { tournaments, loading, error } = useOpenTournaments(true);
   const [chosen, setChosen] = useState<Tournament | null>(null);
 
   return (

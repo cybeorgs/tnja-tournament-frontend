@@ -10,6 +10,23 @@ export function formatDateRange(start: string, end: string | null): string {
   return `${formatDate(start)} – ${formatDate(end)}`;
 }
 
+/** e.g. "3 Nov 2026, 9:00 am" in the viewer's time zone */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+/** Local yyyy-mm-dd and HH:MM of a moment, for date and time inputs */
+export function toLocalParts(iso: string | null | undefined): { date: string; time: string } {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+}
+
+/** A local date (yyyy-mm-dd) and time (HH:MM) as an ISO moment, or "" if either is missing */
+export const fromLocalParts = (date: string, time: string) => (date && time ? new Date(`${date}T${time}`).toISOString() : "");
+
 /** yyyy-mm-dd for <input type="date"> */
 export const toDateInput = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 

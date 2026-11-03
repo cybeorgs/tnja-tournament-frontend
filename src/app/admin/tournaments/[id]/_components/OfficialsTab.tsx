@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Eye, FileStack, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Download, Eye, FileStack, Minus, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { api, openPdf } from "@/lib/api";
 import { useApi, useMeta } from "@/lib/hooks";
 import { titleCase } from "@/lib/format";
@@ -49,7 +49,7 @@ export function OfficialsTab({ tournament, onChange }: { tournament: TournamentD
   return (
     <Card>
       <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-500">Referees, judges and table officials working at this tournament.</p>
+        <MatsControl tournament={tournament} onChange={onChange} />
         <div className="flex gap-2">
           <Button
             variant="secondary"
@@ -124,6 +124,37 @@ export function OfficialsTab({ tournament, onChange }: { tournament: TournamentD
         />
       )}
     </Card>
+  );
+}
+
+/** Number of mats, changed here rather than on the tournament form. */
+function MatsControl({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const mats = tournament.numberOfMats;
+
+  async function setMats(n: number) {
+    setSaving(true);
+    try {
+      await api(`/tournaments/${tournament.id}/mats`, { method: "PATCH", body: { numberOfMats: n } });
+      onChange();
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const step = "flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40";
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm font-medium text-slate-700">Mats</span>
+      <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5">
+        <button type="button" aria-label="Remove a mat" className={step} disabled={saving || mats <= 1} onClick={() => setMats(mats - 1)}><Minus size={15} /></button>
+        <span className="w-8 text-center text-sm font-semibold tabular-nums text-slate-900">{mats}</span>
+        <button type="button" aria-label="Add a mat" className={step} disabled={saving || mats >= 20} onClick={() => setMats(mats + 1)}><Plus size={15} /></button>
+      </div>
+    </div>
   );
 }
 

@@ -14,7 +14,7 @@ export default function DashboardPage() {
   const totals = {
     tournaments: tournaments?.length ?? 0,
     students: tournaments?.reduce((s, t) => s + t._count.registrations, 0) ?? 0,
-    published: tournaments?.filter((t) => t.status !== "DRAFT").length ?? 0,
+    active: active.length,
   };
 
   return (
@@ -28,7 +28,7 @@ export default function DashboardPage() {
         {[
           { label: "Tournaments", value: totals.tournaments, icon: Trophy, tone: "bg-brand-soft text-brand" },
           { label: "Entries", value: totals.students, icon: Users, tone: "bg-blue-50 text-blue-600" },
-          { label: "Published", value: totals.published, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
+          { label: "Active", value: totals.active, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
         ].map(({ label, value, icon: Icon, tone }) => (
           <Card key={label} className="flex items-center gap-4 p-5">
             <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}><Icon size={22} /></span>

@@ -14,10 +14,10 @@ export default function NewTournamentPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <BackLink href="/admin/tournaments">Tournaments</BackLink>
-      <PageHeader title="New tournament" subtitle="Saved as a draft until you publish it." />
+      <PageHeader title="New tournament" subtitle="It goes live on the public site as soon as you create it." />
       <Card className="p-5 sm:p-8">
         <TournamentForm
-          initial={emptyTournament}
+          initial={emptyTournament()}
           submitLabel="Create tournament"
           onSubmit={async (data) => {
             const created = await api<Tournament>("/tournaments", { body: data });

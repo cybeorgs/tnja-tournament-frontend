@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 
 export type DistrictTaluks = { district: string; taluks: string[] };
-export type PincodeMatch = { pincode: string; district: string; taluks: string[]; postOffices: string[] };
+/** A Tamil Nadu pincode gives the district and candidate taluks; elsewhere just the state and district. */
+export type PincodeMatch = { pincode: string; inTamilNadu: boolean; state: string; district: string; taluks: string[]; postOffices: string[] };
 
 let cache: DistrictTaluks[] | null = null;
 

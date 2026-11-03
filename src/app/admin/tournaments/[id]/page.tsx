@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
-import { Award, Globe, LayoutGrid, ShieldCheck, Swords, Users } from "lucide-react";
+import { Award, Globe, LayoutGrid, Mail, ShieldCheck, Swords, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
 import { formatDateRange } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
@@ -14,6 +14,7 @@ import { OfficialsTab } from "./_components/OfficialsTab";
 import { DrawsTab } from "./_components/DrawsTab";
 import { ResultsTab } from "./_components/ResultsTab";
 import { PublishTab } from "./_components/PublishTab";
+import { EmailsTab } from "./_components/EmailsTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -21,7 +22,8 @@ const TABS = [
   { id: "referees", label: "Referees", icon: ShieldCheck },
   { id: "draws", label: "Draws & Matches", icon: Swords },
   { id: "results", label: "Results & Certificates", icon: Award },
-  { id: "publish", label: "Publish", icon: Globe },
+  { id: "emails", label: "Emails", icon: Mail },
+  { id: "publish", label: "Public page", icon: Globe },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -85,6 +87,7 @@ export default function TournamentPage() {
       {tab === "draws" && <DrawsTab tournament={tournament} onChange={reload} />}
       {tab === "results" && <ResultsTab tournament={tournament} onChange={reload} />}
       {tab === "publish" && <PublishTab tournament={tournament} onChange={reload} />}
+      {tab === "emails" && <EmailsTab tournament={tournament} />}
     </div>
   );
 }

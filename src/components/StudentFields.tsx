@@ -7,37 +7,39 @@ import { toDateInput } from "@/lib/format";
 import { lookupPincode, useLocations } from "@/lib/locations";
 import { DateInput, Field, Input, Select, cx } from "./ui";
 import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
+import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
+import { DocumentUpload } from "./DocumentUpload";
 
 /**
  * Full student registration form (same details as the main TNJA player registration).
  * Used by the public /register page, the admin Students page and a tournament's "new student" entry.
  */
 export type StudentInput = {
-  district: string; taluk: string; residingPincode: string;
+  residingPincode: string; outsideTamilNadu: boolean; district: string; taluk: string;
   fullName: string; fatherName: string; motherName: string; gender: StudentGender | ""; dob: string;
   bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; email: string; nationality: string;
   address: string; city: string; state: string; pincode: string;
-  annualIncome: string;
+  annualIncome: string; isBPL: boolean;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
   club: string; coachName: string; belt: string;
 };
 
 export const emptyStudent: StudentInput = {
-  district: "", taluk: "", residingPincode: "",
+  residingPincode: "", outsideTamilNadu: false, district: "", taluk: "",
   fullName: "", fatherName: "", motherName: "", gender: "", dob: "",
   bloodGroup: "", aadhaarNumber: "", phone: "", alternatePhone: "", email: "", nationality: "Indian",
   address: "", city: "", state: "Tamil Nadu", pincode: "",
-  annualIncome: "",
+  annualIncome: "", isBPL: false,
   institutionType: "SCHOOL", institutionName: "", grade: "", degreeDepartment: "",
   club: "", coachName: "", belt: "",
 };
 
 export const fromStudent = (s: Student): StudentInput => ({
-  district: s.district, taluk: s.taluk, residingPincode: s.residingPincode,
+  residingPincode: s.residingPincode, outsideTamilNadu: s.outsideTamilNadu, district: s.district, taluk: s.taluk,
   fullName: s.fullName, fatherName: s.fatherName, motherName: s.motherName, gender: s.gender, dob: toDateInput(s.dob),
   bloodGroup: s.bloodGroup, aadhaarNumber: s.aadhaarNumber ?? "", phone: s.phone, alternatePhone: s.alternatePhone, email: s.email, nationality: s.nationality || "Indian",
   address: s.address, city: s.city, state: s.state || "Tamil Nadu", pincode: s.pincode,
-  annualIncome: s.annualIncome === null ? "" : String(s.annualIncome),
+  annualIncome: s.annualIncome === null ? "" : String(s.annualIncome), isBPL: s.isBPL,
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
   club: s.club, coachName: s.coachName, belt: s.belt,
 });
@@ -45,10 +47,23 @@ export const fromStudent = (s: Student): StudentInput => ({
 const MOBILE = /^[6-9]\d{9}$/;
 const PINCODE = /^[1-9]\d{5}$/;
 
+/** Documents a student uploads when registering themselves (data: URLs). */
+export type StudentDocs = { bplProof: string; nativityProof: string; nativityProofLabel: string };
+export const emptyDocs: StudentDocs = { bplProof: "", nativityProof: "", nativityProofLabel: "Nativity certificate" };
+
+/** What still has to be uploaded, or null. */
+export function validateDocs(f: StudentInput, d: StudentDocs): string | null {
+  if (f.outsideTamilNadu && !d.nativityProof) return "Please upload a nativity certificate or other proof of where you live.";
+  if (!f.outsideTamilNadu && f.isBPL && !d.bplProof) return "Please upload your BPL card or certificate.";
+  return null;
+}
+
+const NATIVITY_DOCS = ["Nativity certificate", "Community certificate", "School / college bonafide", "Ration card", "Other"];
+
 /** Client-side check before saving; the API validates the same rules. */
 export function validateStudent(f: StudentInput): string | null {
   const missing: [keyof StudentInput, string][] = [
-    ["district", "district"], ["taluk", "taluk"], ["fullName", "full name"], ["fatherName", "father's name"], ["motherName", "mother's name"],
+    ["district", "district"], ...(f.outsideTamilNadu ? [] : [["taluk", "taluk"] as [keyof StudentInput, string]]), ["fullName", "full name"], ["fatherName", "father's name"], ["motherName", "mother's name"],
     ["gender", "gender"], ["dob", "date of birth"], ["bloodGroup", "blood group"], ["email", "email"], ["nationality", "nationality"],
     ["address", "address"], ["city", "city"], ["state", "state"], ["annualIncome", "annual income"], ["institutionName", "institution name"], ["grade", "standard / year"],
   ];
@@ -81,15 +96,21 @@ function ageFrom(dob: string): number | null {
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, emailOtp, savedEmail }: {
+export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, savedEmail, docs, onDocsChange }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
   /** Require the email to be verified with a code */
   emailOtp?: EmailOtp;
+  /** Require the Aadhaar to be verified with DigiLocker, its pincode matching the residing pincode (public registration) */
+  digilocker?: AadhaarDigilocker;
   /** Email already on file (editing); keeping it needs no new code */
   savedEmail?: string;
+  /** Ask for BPL proof / proof of nativity (public registration) */
+  docs?: StudentDocs;
+  onDocsChange?: (d: StudentDocs) => void;
 }) {
+  const setDoc = <K extends keyof StudentDocs>(k: K, v: StudentDocs[K]) => docs && onDocsChange?.({ ...docs, [k]: v });
   const locations = useLocations();
   const set = <K extends keyof StudentInput>(k: K, v: StudentInput[K]) => onChange({ ...value, [k]: v });
   const taluks = locations.find((d) => d.district === value.district)?.taluks ?? [];
@@ -111,24 +132,54 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, savedEmai
             pincode?.loading ? (
               <span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Finding your area…</span>
             ) : pincode?.text ? (
-              <span className="inline-flex items-center gap-1 font-medium text-emerald-600"><Check size={13} /> {pincode.text}</span>
+              <span className={cx("inline-flex items-center gap-1 font-medium", value.outsideTamilNadu ? "text-amber-700" : "text-emerald-600")}><Check size={13} /> {pincode.text}</span>
             ) : undefined
           }
         >
           <Input inputMode="numeric" placeholder="e.g. 641001" value={value.residingPincode} onChange={(e) => set("residingPincode", digits(e.target.value, 6))} aria-invalid={!!pincode?.error} />
         </Field>
-        <Field label="District" required>
-          <Select value={value.district} onChange={(e) => onChange({ ...value, district: e.target.value, taluk: "" })}>
-            <option value="">Select</option>
-            {locations.map((d) => <option key={d.district}>{d.district}</option>)}
-          </Select>
-        </Field>
-        <Field label="Taluk" required>
-          <Select value={value.taluk} onChange={(e) => set("taluk", e.target.value)} disabled={!value.district}>
-            <option value="">{value.district ? "Select" : "Pick a district first"}</option>
-            {taluks.map((t) => <option key={t}>{t}</option>)}
-          </Select>
-        </Field>
+        {value.outsideTamilNadu ? (
+          <>
+            <Field label="District" required>
+              <Input value={value.district} onChange={(e) => set("district", e.target.value)} />
+            </Field>
+            <Field label="Area / taluk">
+              <Input value={value.taluk} onChange={(e) => set("taluk", e.target.value)} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label="District" required>
+              <Select value={value.district} onChange={(e) => onChange({ ...value, district: e.target.value, taluk: "" })}>
+                <option value="">Select</option>
+                {locations.map((d) => <option key={d.district}>{d.district}</option>)}
+              </Select>
+            </Field>
+            <Field label="Taluk" required>
+              <Select value={value.taluk} onChange={(e) => set("taluk", e.target.value)} disabled={!value.district}>
+                <option value="">{value.district ? "Select" : "Pick a district first"}</option>
+                {taluks.map((t) => <option key={t}>{t}</option>)}
+              </Select>
+            </Field>
+          </>
+        )}
+        {value.outsideTamilNadu && docs && (
+          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:col-span-2 lg:col-span-3">
+            <p className="text-sm text-amber-900">
+              <span className="font-semibold">You live outside Tamil Nadu.</span> Upload a nativity certificate or another proof. Our team will review it, and we&apos;ll email you once you&apos;re approved.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[14rem_1fr]">
+              <Field label="Document" required>
+                <Select value={docs.nativityProofLabel} onChange={(e) => setDoc("nativityProofLabel", e.target.value)}>
+                  {NATIVITY_DOCS.map((d) => <option key={d}>{d}</option>)}
+                </Select>
+              </Field>
+              <Field label="Upload" required group>
+                <DocumentUpload value={docs.nativityProof} onChange={(v) => setDoc("nativityProof", v)} label={`Upload ${docs.nativityProofLabel.toLowerCase()}`} />
+              </Field>
+            </div>
+          </div>
+        )}
       </Section>
 
       <Section icon={<UserRound />} title="Personal details">
@@ -158,9 +209,13 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, savedEmai
             {BLOOD_GROUPS.map((b) => <option key={b}>{b}</option>)}
           </Select>
         </Field>
-        <Field label="Aadhaar number" required>
-          <Input inputMode="numeric" placeholder="12 digits" value={value.aadhaarNumber} onChange={(e) => set("aadhaarNumber", digits(e.target.value, 12))} className="tracking-wide" />
-        </Field>
+        {digilocker ? (
+          <AadhaarDigilockerField value={value.aadhaarNumber} onChange={(v) => set("aadhaarNumber", v)} pincode={value.residingPincode} digilocker={digilocker} className="sm:col-span-2 lg:col-span-3" />
+        ) : (
+          <Field label="Aadhaar number" required>
+            <Input inputMode="numeric" placeholder="12 digits" value={value.aadhaarNumber} onChange={(e) => set("aadhaarNumber", digits(e.target.value, 12))} className="tracking-wide" />
+          </Field>
+        )}
         <Field label="Mobile" required>
           <PhoneInput value={value.phone} onChange={(v) => set("phone", v)} />
         </Field>
@@ -201,6 +256,16 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, savedEmai
             <Input inputMode="numeric" placeholder="0" value={value.annualIncome} onChange={(e) => set("annualIncome", digits(e.target.value, 10))} className="pl-8" />
           </div>
         </Field>
+        {!value.outsideTamilNadu && (
+          <Field label="BPL family?" required group hint="Below poverty line">
+            <Segmented value={value.isBPL ? "YES" : "NO"} options={[{ value: "NO", label: "No" }, { value: "YES", label: "Yes" }]} onChange={(v) => set("isBPL", v === "YES")} />
+          </Field>
+        )}
+        {!value.outsideTamilNadu && value.isBPL && docs && (
+          <Field label="BPL card or certificate" required group className="sm:col-span-2 lg:col-span-1">
+            <DocumentUpload value={docs.bplProof} onChange={(v) => setDoc("bplProof", v)} label="Upload BPL proof" />
+          </Field>
+        )}
       </Section>
 
       <Section icon={<GraduationCap />} title="Education">
@@ -308,8 +373,13 @@ function usePincodeFill(value: StudentInput, onChange: (v: StudentInput) => void
     lookupPincode(pincode)
       .then((m) => {
         if (cancelled) return;
+        if (!m.inTamilNadu) {
+          latest.current.onChange({ ...latest.current.value, outsideTamilNadu: true, isBPL: false, district: m.district, taluk: "" });
+          setResult({ pincode, text: `${m.district}, ${m.state} — outside Tamil Nadu` });
+          return;
+        }
         const onlyTaluk = m.taluks.length === 1 ? m.taluks[0]! : "";
-        latest.current.onChange({ ...latest.current.value, district: m.district, taluk: onlyTaluk });
+        latest.current.onChange({ ...latest.current.value, outsideTamilNadu: false, district: m.district, taluk: onlyTaluk });
         setResult({ pincode, text: onlyTaluk ? `${m.district}, ${onlyTaluk}` : `${m.district} — pick your taluk` });
       })
       .catch((err: Error) => !cancelled && setResult({ pincode, error: err.message }));

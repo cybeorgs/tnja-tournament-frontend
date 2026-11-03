@@ -1,8 +1,10 @@
 /** Competition categories are boys' or girls' only. */
 export type Gender = "MALE" | "FEMALE";
 export type StudentGender = Gender | "OTHER";
+export type StudentStatus = "APPROVED" | "PENDING" | "REJECTED";
 export type Placement = "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION";
-export type TournamentStatus = "DRAFT" | "PUBLISHED" | "COMPLETED";
+/** Published as soon as it is created; COMPLETED once it is over. */
+export type TournamentStatus = "PUBLISHED" | "COMPLETED";
 
 export interface Settings {
   orgName: string;
@@ -14,6 +16,8 @@ export interface Settings {
   signatory2Title: string;
   hasLogo: boolean;
   updatedAt: string;
+  /** Public settings only: self-registration asks for Aadhaar verification through DigiLocker */
+  aadhaarVerification?: boolean;
 }
 
 export interface Meta {
@@ -30,14 +34,23 @@ export interface Tournament {
   description: string;
   venue: string;
   city: string;
+  /** Date and time the tournament starts; registration closes at this moment */
   startDate: string;
   endDate: string | null;
+  /** Registration opens (regular fee) */
+  registrationOpensAt: string;
+  /** Regular registration ends; late registration at 2 × the fee runs until the start */
+  registrationClosesAt: string;
+  /** When the deadline reminder is emailed to players with unpaid entries; null = none */
+  reminderAt: string | null;
   level: string;
   gender: "MALE" | "FEMALE" | "BOTH";
   ageGroups: string[];
+  /** Regular entry fee */
   entryFee: number;
+  /** Late entry fee set by the admin (not lower than the regular fee) */
+  lateEntryFee: number;
   numberOfMats: number;
-  registrationOpen: boolean;
   status: TournamentStatus;
   publishedAt: string | null;
   resultsPublished: boolean;
@@ -50,13 +63,53 @@ export interface TournamentListItem extends Tournament {
 }
 
 export interface TournamentDetail extends Tournament {
-  stats: { registrations: number; paid: number; collected: number; referees: number; categories: number; draws: number; concludedDraws: number };
+  stats: {
+    /** Entries (a player may enter several age groups) */
+    registrations: number;
+    paid: number;
+    collected: number;
+    referees: number;
+    categories: number;
+    draws: number;
+    concludedDraws: number;
+    players: number;
+    /** Players with every entry settled */
+    paidPlayers: number;
+    playersOwing: number;
+    pendingPayments: number;
+    pendingAmount: number;
+    regularEntries: number;
+    lateEntries: number;
+    regularRevenue: number;
+    lateRevenue: number;
+  };
+}
+
+export type EmailKind = "CONFIRMATION" | "REMINDER" | "PAYMENT";
+
+export interface EmailLogEntry {
+  id: string;
+  studentId: string | null;
+  studentName: string | null;
+  kind: EmailKind;
+  trigger: "AUTO" | "MANUAL";
+  toEmail: string;
+  subject: string;
+  status: "SENT" | "FAILED" | "NOT_CONFIGURED";
+  error: string;
+  createdAt: string;
 }
 
 export interface Student {
   id: string;
-  /** Permanent student ID, e.g. TNJA-S-000123 */
-  studentNo: string;
+  /** Permanent student ID, e.g. TNJA-S-000123; null until an application from outside Tamil Nadu is approved */
+  studentNo: string | null;
+  status: StudentStatus;
+  /** Lives outside Tamil Nadu (uploaded proof of nativity, needed approval) */
+  outsideTamilNadu: boolean;
+  isBPL: boolean;
+  /** Why an application was rejected */
+  reviewNote: string;
   fullName: string;
   fatherName: string;
   motherName: string;
@@ -91,7 +144,10 @@ export interface Student {
 
 export interface StudentDetail extends Student {
   registrations: (Registration & { tournament: { id: string; title: string; startDate: string } })[];
+  documents: { kind: DocumentKind; label: string; mime: string }[];
 }
+
+export type DocumentKind = "BPL_PROOF" | "NATIVITY_PROOF";
 
 export interface Registration {
   id: string;
@@ -105,7 +161,13 @@ export interface Registration {
   certificateNo: string | null;
   paymentStatus: "PENDING" | "PAID" | "WAIVED";
   paymentMode: string | null;
+  /** Entered during late registration */
+  isLate: boolean;
+  /** What this entry costs (entry fee, or late entry fee for a late entry) */
+  fee: number;
   amountPaid: number;
+  razorpayPaymentId: string | null;
+  createdAt: string;
   paidAt: string | null;
   student: Student;
 }
@@ -211,4 +273,29 @@ export interface Paged<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/**
+ * Registration runs on the tournament's schedule (the backend enforces the same rules):
+ * NOT_OPEN before it opens · OPEN at the entry fee · LATE at the admin's late entry fee until the start · CLOSED from the start.
+ * Unpaid entries owe the fee of the period they are paid in.
+ */
+export type RegistrationPhase = "NOT_OPEN" | "OPEN" | "LATE" | "CLOSED";
+
+type ScheduleFields = Pick<Tournament, "registrationOpensAt" | "registrationClosesAt" | "startDate" | "entryFee" | "lateEntryFee" | "status">;
+
+export function registrationPhase(t: ScheduleFields, now = new Date()): RegistrationPhase {
+  if (t.status === "COMPLETED" || now >= new Date(t.startDate)) return "CLOSED";
+  if (now < new Date(t.registrationOpensAt)) return "NOT_OPEN";
+  return now < new Date(t.registrationClosesAt) ? "OPEN" : "LATE";
+}
+
+export const lateEntryFee = (t: Pick<Tournament, "lateEntryFee">) => t.lateEntryFee;
+
+/** Fee for an entry made now: the late entry fee during late registration. */
+export const currentEntryFee = (t: ScheduleFields, now = new Date()) => (registrationPhase(t, now) === "LATE" ? lateEntryFee(t) : t.entryFee);
+
+/** The next moment the phase changes (open, regular close, start), so pages can update right then. */
+export function nextPhaseChange(t: ScheduleFields, now = new Date()): Date | null {
+  return [t.registrationOpensAt, t.registrationClosesAt, t.startDate].map((d) => new Date(d)).find((d) => d > now) ?? null;
 }

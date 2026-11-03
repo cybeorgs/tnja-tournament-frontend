@@ -7,9 +7,7 @@ import { useSettings } from "@/lib/hooks";
 import { Brand } from "./Brand";
 import { cx } from "./ui";
 
-const LINKS: { href: string; label: string; hideOnMobile?: boolean }[] = [
-  { href: "/enter", label: "Register" },
-];
+const LINKS: { href: string; label: string; hideOnMobile?: boolean }[] = [];
 
 export function PublicShell({ children }: { children: ReactNode }) {
   const { data: settings } = useSettings();

@@ -13,7 +13,7 @@ import { errorMessage, useToast } from "./Toast";
  * Shared by the Students and Referees pages.
  */
 export function PeopleList<T extends { id: string; fullName: string }, F>({
-  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm,
+  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm, query = "", toolbar,
 }: {
   title: string;
   subtitle: ReactNode;
@@ -31,6 +31,10 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   onView?: (item: T) => void;
   searchPlaceholder?: string;
   wideForm?: boolean;
+  /** Extra list filters, e.g. "&status=PENDING" */
+  query?: string;
+  /** Shown above the search box, e.g. filter tabs */
+  toolbar?: ReactNode;
 }) {
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -45,7 +49,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
     return () => clearTimeout(handle);
   }, [q]);
 
-  const { data, loading, error, reload } = useApi<Paged<T>>(`${endpoint}?page=${page}&pageSize=50&q=${encodeURIComponent(debounced)}`);
+  const { data, loading, error, reload } = useApi<Paged<T>>(`${endpoint}?page=${page}&pageSize=50&q=${encodeURIComponent(debounced)}${query}`);
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   const open = (item: T | "new") => {
@@ -85,6 +89,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title={title} subtitle={subtitle} actions={<Button icon={<Plus size={16} />} onClick={() => open("new")}>Add {noun.toLowerCase()}</Button>} />
+      {toolbar}
       <Card>
         <div className="border-b border-slate-100 p-4">
           <div className="relative">
