@@ -33,6 +33,8 @@ export async function studentApi<T>(path: string, init: { method?: string; body?
 export interface MyStudent {
   id: string;
   studentNo: string | null;
+  /** Shown while waiting for approval (can be used to log in) */
+  tempId: string | null;
   fullName: string;
   gender: string;
   dob: string;
@@ -70,11 +72,9 @@ export interface MyRegistration {
   id: string;
   ageGroup: string;
   weightCategory: string;
-  paymentStatus: "PENDING" | "PAID" | "WAIVED";
+  weightKg: number;
   placement: string | null;
-  /** What the entry costs (late entry fee for a late entry) */
-  fee: number;
   isLate: boolean;
-  amountPaid: number;
+  weighInStatus: "PENDING" | "CLEARED" | "DISQUALIFIED";
   tournament: { id: string; slug: string; title: string; startDate: string; endDate: string | null; venue: string; city: string; status: "PUBLISHED" | "COMPLETED" };
 }

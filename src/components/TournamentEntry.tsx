@@ -1,53 +1,204 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Check, CheckCircle2, IndianRupee } from "lucide-react";
+import { Check, CheckCircle2, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useMeta, useNow } from "@/lib/hooks";
-import { competitionAge, ownAgeGroup, weightClassFor } from "@/lib/categories";
-import { rupees } from "@/lib/format";
-import { openCheckout, type PaymentOrder } from "@/lib/razorpay";
+import { ownAgeGroup, weightClassFor } from "@/lib/categories";
 import { registrationPhase, type Gender, type StudentGender, type Tournament } from "@/lib/types";
 import { Button, Field, Input, Select, Spinner, cx } from "./ui";
 import { errorMessage } from "./Toast";
 
-export interface Entry { id: string; ageGroup: string; gender: Gender; weightCategory: string; weightKg: number; paymentStatus: "PENDING" | "PAID" | "WAIVED"; fee: number; isLate: boolean }
+export interface Entry { id: string; ageGroup: string; gender: Gender; weightCategory: string; weightKg: number; isLate: boolean }
 interface CheckResult {
   student: { studentNo: string; fullName: string; gender: StudentGender };
   genderAllowed: boolean;
   ageGroups: string[];
-  /** Fee for each new entry now (the late entry fee during late registration) */
-  entryFee: number;
   lateRegistration: boolean;
   entries: Entry[];
 }
 
-const isIn = (e: Entry) => e.paymentStatus !== "PENDING";
 /** "A", "A and B", "A, B and C" */
 const listJoin = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 
+// ─── Events picker (shared by the registration form and returning players) ───
+
+/** What the player answers: the events (age groups) they're ready to play, their weight, and (gender Other) boys' or girls' events. */
+export interface EventsValue { ageGroups: string[]; weight: string; competeAs: Gender | "" }
+export const emptyEvents: EventsValue = { ageGroups: [], weight: "", competeAs: "" };
+
+/** What's missing, or null when the events can be entered. */
+export function eventsProblem(v: EventsValue, eligible: string[], needsCompeteAs: boolean): string | null {
+  if (!eligible.length) return null; // nothing to choose (reported in the picker)
+  if (needsCompeteAs && !v.competeAs) return "Events: choose boys' or girls' events.";
+  const kg = parseFloat(v.weight);
+  if (!kg) return "Events: enter your weight.";
+  if (kg < 10 || kg > 250) return "Events: check your weight.";
+  if (!v.ageGroups.some((g) => eligible.includes(g))) return "Events: tick at least one event you will play.";
+  return null;
+}
+
 /**
- * Choose the age groups to enter (e.g. a cadet can enter Cadet, Junior and Senior), then pay for
- * them in one go. New entries cost the current fee (the late entry fee during late registration);
- * an unpaid entry made earlier keeps its own fee. The student is identified by ID + date of birth.
+ * "Which events will you play?" A cadet (15–17) can play Cadet, Junior and Senior; a junior (18–20)
+ * Junior and Senior; a senior (21+) Senior only. Shows the weight class for each event as the weight is typed.
+ */
+export function EventsPicker({ eligible, age, gender, lockGender, value, onChange, entered }: {
+  /** Events this player may enter in this tournament, youngest first */
+  eligible: string[];
+  /** Competition age (tournament year − birth year); null until the date of birth is known */
+  age: number | null;
+  gender: StudentGender | "";
+  /** Set when the tournament is for boys or girls only */
+  lockGender?: Gender;
+  value: EventsValue;
+  onChange: (v: EventsValue) => void;
+  /** Events already entered (age group → weight class); shown ticked and locked */
+  entered?: Map<string, string>;
+}) {
+  const meta = useMeta();
+  const set = (patch: Partial<EventsValue>) => onChange({ ...value, ...patch });
+  const isOther = gender === "OTHER";
+  const catGender: Gender | null = isOther ? lockGender ?? (value.competeAs || null) : gender ? (gender as Gender) : null;
+  const weightKg = parseFloat(value.weight) || 0;
+  const open = eligible.filter((g) => !entered?.has(g));
+  const allPicked = open.length > 0 && open.every((g) => value.ageGroups.includes(g));
+  const toggle = (g: string) => set({ ageGroups: value.ageGroups.includes(g) ? value.ageGroups.filter((x) => x !== g) : [...value.ageGroups, g] });
+  const own = meta && age !== null ? ownAgeGroup(meta, age) : undefined;
+
+  return (
+    <section className="rounded-2xl border border-brand/20 bg-brand-soft/30 p-4 sm:p-5">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white"><Trophy size={17} /></span>
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Events you will play <span className="text-brand">*</span></h3>
+          <p className="text-xs text-slate-500">
+            Players can play more than one event: cadets (15–17) in Cadet, Junior and Senior; juniors (18–20) in Junior and Senior; seniors (21+) in Senior.
+          </p>
+        </div>
+      </div>
+
+      {age === null ? (
+        <p className="rounded-xl bg-white px-4 py-3 text-sm text-slate-500">Enter your date of birth above to see the events you can play.</p>
+      ) : !eligible.length ? (
+        <p className="rounded-xl bg-white px-4 py-3 text-sm text-red-700">
+          At age {age} there is no event for you in this tournament. Check your date of birth.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          <p className="rounded-xl bg-white px-4 py-2.5 text-sm text-slate-700">
+            Age <strong>{age}</strong>{own && <> ({own})</>}: you can play{" "}
+            <strong>{eligible.length === 1 ? "1 event" : `up to ${eligible.length} events`}</strong> — {listJoin(eligible)}.
+            {eligible.length > 1 && " Tick every event you are ready to play."}
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {isOther && (
+              <Field label="Compete in" required>
+                <Select value={lockGender ?? value.competeAs} disabled={!!lockGender} onChange={(e) => set({ competeAs: e.target.value as Gender })}>
+                  <option value="">Select</option>
+                  <option value="MALE">Boys&apos; events</option>
+                  <option value="FEMALE">Girls&apos; events</option>
+                </Select>
+              </Field>
+            )}
+            <Field label="Your weight" required hint="The weight class of each event is worked out from it">
+              <div className="relative">
+                <Input type="number" inputMode="decimal" min={10} max={250} step={0.1} value={value.weight} onChange={(e) => set({ weight: e.target.value })} className="pr-12" />
+                <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-400">kg</span>
+              </div>
+            </Field>
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between gap-3">
+              <p className="text-[13px] font-medium text-slate-700">
+                Which events will you play? {eligible.length > 1 && <span className="font-normal text-slate-500">— one or more</span>}
+              </p>
+              {open.length > 1 && (
+                <button type="button" onClick={() => set({ ageGroups: allPicked ? [] : open })} className="text-xs font-semibold text-brand hover:underline">
+                  {allPicked ? "Clear" : `Play all ${open.length}`}
+                </button>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {eligible.map((g) => {
+                const done = entered?.get(g);
+                const on = value.ageGroups.includes(g) || !!done;
+                const cls = meta && catGender && weightKg ? weightClassFor(meta, g, catGender, weightKg) : "";
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={on}
+                    disabled={!!done}
+                    onClick={() => toggle(g)}
+                    className={cx(
+                      "flex items-center gap-3 rounded-xl border bg-white px-4 py-3 text-left transition-all",
+                      on ? "border-brand bg-brand-soft/60 ring-1 ring-brand/30" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                      done && "cursor-default opacity-80",
+                    )}
+                  >
+                    <span className={cx("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", on ? "border-brand bg-brand text-white" : "border-slate-300 bg-white")}>
+                      {on && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-800">{g}</span>
+                      <span className="block text-xs text-slate-500">{done ? `Registered · ${done}` : cls ? `Weight class ${cls}` : "Enter your weight"}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** "You're in" summary of the events entered. */
+export function EntryDone({ name, studentNo, entries, tournament, note }: { name: string; studentNo: string; entries: Entry[]; tournament: Tournament; note?: React.ReactNode }) {
+  return (
+    <div className="py-4 text-center">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+        <CheckCircle2 size={36} className="text-emerald-500" />
+      </div>
+      <p className="mt-4 text-lg font-bold text-slate-900">You&apos;re in, {name}!</p>
+      <p className="mt-1 text-sm text-slate-500">Registered in {entries.length} event{entries.length === 1 ? "" : "s"}. Registration is free — nothing to pay.</p>
+      <ul className="mx-auto mt-3 max-w-xs space-y-1 text-sm text-slate-600">
+        {entries.map((e) => (
+          <li key={e.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+            <span>{e.ageGroup} · {e.weightCategory}</span>
+            <span className="text-xs font-semibold text-emerald-600">Confirmed</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-xs text-slate-500">Student ID <span className="font-mono font-semibold text-brand">{studentNo}</span> · bring it to the weigh-in</p>
+      {note && <div className="mt-3 text-xs text-slate-500">{note}</div>}
+      <Link href={`/t/${tournament.slug}`} className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">View tournament</Link>
+    </div>
+  );
+}
+
+// ─── Returning player: enter more events ─────────────────────────────────────
+
+/**
+ * A registered student (identified by ID + date of birth) chooses the events to enter. Free:
+ * entries are confirmed straight away.
  */
 export function TournamentEntry({ tournament, studentNo, dob, banner }: { tournament: Tournament; studentNo: string; dob: string; banner?: React.ReactNode }) {
-  const meta = useMeta();
   const lockGender = tournament.gender === "BOTH" ? undefined : tournament.gender;
   const base = `/public/tournaments/${tournament.slug}/entry`;
 
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [weight, setWeight] = useState("");
-  const [competeAs, setCompeteAs] = useState<Gender | "">(lockGender ?? "");
+  const [events, setEvents] = useState<EventsValue>({ ...emptyEvents, competeAs: lockGender ?? "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Entry[] | null>(null);
-  const filledIn = useRef(false);
-  // When regular registration ends (or registration closes) while the page is open, ask the server
-  // again so the fee shown is the one that will be charged.
+  // When registration moves to late registration (or closes) while the page is open, ask again.
   const phase = registrationPhase(tournament, useNow(15_000));
 
   useEffect(() => {
@@ -57,12 +208,8 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         if (cancelled) return;
         setCheck(r);
         setLoadError("");
-        if (filledIn.current) return; // a refresh: keep what the student has chosen
-        filledIn.current = true;
-        const pending = r.entries.filter((e) => !isIn(e));
-        setPicked(pending.length ? pending.map((e) => e.ageGroup) : r.ageGroups.length === 1 ? [r.ageGroups[0]!] : []);
-        if (r.entries[0]) setWeight(String(r.entries[0].weightKg));
-        if (r.entries.length && r.entries.every(isIn) && r.entries.length === r.ageGroups.length) setDone(r.entries);
+        if (r.entries[0]) setEvents((v) => (v.weight ? v : { ...v, weight: String(r.entries[0]!.weightKg) }));
+        if (r.entries.length && r.entries.length >= r.ageGroups.length) setDone(r.entries);
       })
       .catch((err) => !cancelled && setLoadError(errorMessage(err)));
     return () => { cancelled = true; };
@@ -70,42 +217,24 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
 
   if (loadError) return <ErrorText>{loadError}</ErrorText>;
   if (!check) return <Spinner />;
+  if (done) return <EntryDone name={check.student.fullName} studentNo={check.student.studentNo} entries={done} tournament={tournament} />;
 
   const isOther = check.student.gender === "OTHER";
-  const catGender: Gender | null = isOther ? lockGender ?? (competeAs || null) : (check.student.gender as Gender);
-  const weightKg = parseFloat(weight) || 0;
-  const already = new Map(check.entries.filter(isIn).map((e) => [e.ageGroup, e]));
-  const fresh = picked.filter((g) => !already.has(g));
-  const pendingFee = new Map(check.entries.filter((e) => !isIn(e)).map((e) => [e.ageGroup, e.fee]));
-  const feeFor = (g: string) => pendingFee.get(g) ?? check.entryFee;
-  const total = fresh.reduce((sum, g) => sum + feeFor(g), 0);
-  const sameFee = fresh.every((g) => feeFor(g) === feeFor(fresh[0]!));
-  const toggle = (g: string) => setPicked((p) => (p.includes(g) ? p.filter((x) => x !== g) : [...p, g]));
-  const selectable = check.ageGroups.filter((g) => !already.has(g));
-  const allPicked = selectable.length > 0 && selectable.every((g) => picked.includes(g));
-  const age = dob ? competitionAge(dob, tournament.startDate) : 0;
-  const own = meta && age ? ownAgeGroup(meta, age) : undefined;
-  const eligibilityNote =
-    own && check.ageGroups.length > 1
-      ? `Age ${age} (${own}): you can enter ${listJoin(check.ageGroups)}.`
-      : own && check.ageGroups.length === 1 && check.ageGroups[0] !== own
-        ? `Age ${age} (${own}): you can enter ${check.ageGroups[0]}.`
-        : "";
+  const entered = new Map(check.entries.map((e) => [e.ageGroup, e.weightCategory]));
+  const open = check.ageGroups.filter((g) => !entered.has(g));
+  const fresh = events.ageGroups.filter((g) => open.includes(g));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setError("");
-    if (!fresh.length) return setError("Choose at least one category.");
-    if (!weightKg) return setError("Enter your weight.");
-    if (isOther && !catGender) return setError("Choose boys' or girls' categories.");
+    const problem = eventsProblem(events, open, isOther && !lockGender);
+    setError(problem ?? "");
+    if (problem) return;
     setBusy(true);
     try {
-      const { entries, payment } = await api<{ entries: Entry[]; payment: PaymentOrder | null }>(base, {
-        body: { studentNo, dob, ageGroups: fresh, weightKg, competeAs: isOther ? catGender : undefined },
+      const { entries } = await api<{ entries: Entry[] }>(base, {
+        body: { studentNo, dob, ageGroups: fresh, weightKg: parseFloat(events.weight), competeAs: isOther ? lockGender ?? events.competeAs : undefined },
       });
-      if (!payment) return setDone(entries);
-      await openCheckout(payment, tournament.title, (resp) => api<{ entries: Entry[] }>(`${base}/verify`, { body: resp }));
-      setDone((await api<CheckResult>(`${base}/check`, { body: { studentNo, dob } })).entries.filter(isIn));
+      setDone(entries);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -113,26 +242,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
     }
   }
 
-  if (done) {
-    return (
-      <div className="py-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
-          <CheckCircle2 size={36} className="text-emerald-500" />
-        </div>
-        <p className="mt-4 text-lg font-bold text-slate-900">You&apos;re in, {check.student.fullName}!</p>
-        <ul className="mx-auto mt-3 max-w-xs space-y-1 text-sm text-slate-600">
-          {done.map((e) => (
-            <li key={e.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
-              <span>{e.ageGroup} · {e.weightCategory}</span>
-              <span className="text-xs font-semibold text-emerald-600">{e.paymentStatus === "PAID" ? "Paid" : "Confirmed"}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-xs text-slate-500">Student ID <span className="font-mono font-semibold text-brand">{check.student.studentNo}</span></p>
-        <Link href={`/t/${tournament.slug}`} className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">View tournament</Link>
-      </div>
-    );
-  }
+  const age = new Date(tournament.startDate).getFullYear() - new Date(dob).getFullYear();
 
   return (
     <form onSubmit={submit} className="mx-auto max-w-2xl space-y-5">
@@ -148,7 +258,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
 
       {check.lateRegistration && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span className="font-semibold">Late registration.</span> {check.entryFee > 0 ? `The late entry fee of ${rupees(check.entryFee)} per category applies until the tournament starts.` : "Late entries are free."}
+          <span className="font-semibold">Late registration.</span> Open until the tournament starts.
         </p>
       )}
 
@@ -158,87 +268,11 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         <ErrorText>Your age isn&apos;t in this tournament&apos;s groups ({tournament.ageGroups.join(", ")}).</ErrorText>
       ) : (
         <>
-          {isOther && (
-            <Field label="Compete in" required>
-              <Select value={lockGender ?? competeAs} disabled={!!lockGender} onChange={(e) => setCompeteAs(e.target.value as Gender)}>
-                <option value="">Select</option>
-                <option value="MALE">Boys&apos; categories</option>
-                <option value="FEMALE">Girls&apos; categories</option>
-              </Select>
-            </Field>
-          )}
-
-          <Field label="Weight" required className="sm:max-w-xs">
-            <div className="relative">
-              <Input type="number" inputMode="decimal" min={10} max={250} step={0.1} value={weight} onChange={(e) => setWeight(e.target.value)} required className="pr-12" />
-              <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-400">kg</span>
-            </div>
-          </Field>
-
-          <div>
-            <div className="mb-1.5 flex items-baseline justify-between gap-3">
-              <p className="text-[13px] font-medium text-slate-700">
-                Categories <span className="text-brand">*</span>
-                {check.ageGroups.length > 1 && <span className="ml-1.5 font-normal text-slate-500">— pick one or more</span>}
-              </p>
-              {selectable.length > 1 && (
-                <button type="button" onClick={() => setPicked(allPicked ? [] : selectable)} className="text-xs font-semibold text-brand hover:underline">
-                  {allPicked ? "Clear" : "Select all"}
-                </button>
-              )}
-            </div>
-            {eligibilityNote && <p className="mb-2 text-xs text-slate-500">{eligibilityNote}</p>}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {check.ageGroups.map((g) => {
-                const entered = already.get(g);
-                const on = picked.includes(g) || !!entered;
-                const cls = meta && catGender && weightKg ? weightClassFor(meta, g, catGender, weightKg) : "";
-                return (
-                  <button
-                    key={g}
-                    type="button"
-                    role="checkbox"
-                    aria-checked={on}
-                    disabled={!!entered}
-                    onClick={() => toggle(g)}
-                    className={cx(
-                      "flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all",
-                      on ? "border-brand bg-brand-soft/60 ring-1 ring-brand/30" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-                      entered && "cursor-default opacity-80",
-                    )}
-                  >
-                    <span className={cx("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border", on ? "border-brand bg-brand text-white" : "border-slate-300 bg-white")}>
-                      {on && <Check size={13} strokeWidth={3} />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-slate-800">{g}</span>
-                      <span className="block text-xs text-slate-500">{entered ? `Registered · ${entered.weightCategory}` : cls ? `Category ${cls}` : "Enter your weight"}</span>
-                    </span>
-                    {!entered && feeFor(g) > 0 && <span className="text-xs font-semibold text-slate-500">{rupees(feeFor(g))}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
+          <EventsPicker eligible={check.ageGroups} age={age} gender={check.student.gender} lockGender={lockGender} value={events} onChange={setEvents} entered={entered} />
           {error && <ErrorText>{error}</ErrorText>}
-
-          <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-600">
-              {total > 0 ? (
-                <>
-                  {sameFee && fresh.length > 1 && `${fresh.length} × ${rupees(feeFor(fresh[0]!))} = `}
-                  {!sameFee && "Total "}
-                  <span className="text-lg font-bold text-slate-900">{rupees(total)}</span>
-                </>
-              ) : check.entryFee > 0 ? (
-                `${rupees(check.entryFee)} per category`
-              ) : (
-                "Free entry"
-              )}
-            </p>
-            <Button type="submit" loading={busy} disabled={!fresh.length} icon={total > 0 ? <IndianRupee size={16} /> : <CheckCircle2 size={16} />} className="h-12 px-10 text-base">
-              {total > 0 ? `Pay ${rupees(total)}` : "Confirm registration"}
+          <div className="flex justify-end border-t border-slate-100 pt-5">
+            <Button type="submit" loading={busy} disabled={!fresh.length} icon={<CheckCircle2 size={16} />} className="h-12 px-10 text-base">
+              Confirm {fresh.length > 1 ? `${fresh.length} events` : "registration"}
             </Button>
           </div>
         </>

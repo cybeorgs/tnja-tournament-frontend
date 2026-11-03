@@ -6,10 +6,10 @@ import { api } from "@/lib/api";
 import { useSettings } from "@/lib/hooks";
 import type { Settings } from "@/lib/types";
 import { Button, Card, Field, Input, PageHeader, Spinner } from "@/components/ui";
-import { logoUrl } from "@/components/Brand";
+import { brandLogo } from "@/components/Brand";
 import { errorMessage, useToast } from "@/components/Toast";
 
-type SettingsForm = Omit<Settings, "hasLogo" | "updatedAt">;
+type SettingsForm = Omit<Settings, "hasLogo" | "customLogo" | "updatedAt">;
 
 const toForm = (s: Settings): SettingsForm => ({
   orgName: s.orgName, orgShortName: s.orgShortName, tagline: s.tagline,
@@ -83,16 +83,16 @@ export default function SettingsPage() {
         <h2 className="mb-4 text-sm font-bold text-slate-800">Logo</h2>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-            {settings.hasLogo
-              // eslint-disable-next-line @next/next/no-img-element -- served by the API
-              ? <img src={logoUrl(settings)} alt="Logo" className="h-full w-full object-contain" />
-              : <span className="text-xs text-slate-400">No logo</span>}
+            {/* eslint-disable-next-line @next/next/no-img-element -- served by the API */}
+            <img src={brandLogo(settings)} alt="Logo" className="h-full w-full object-contain" />
           </div>
           <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
           <Button variant="secondary" icon={<ImagePlus size={16} />} loading={uploading} onClick={() => fileRef.current?.click()}>Upload PNG / JPEG</Button>
-          {settings.hasLogo && <Button variant="ghost" icon={<Trash2 size={16} />} onClick={removeLogo}>Remove</Button>}
+          {settings.customLogo && <Button variant="ghost" icon={<Trash2 size={16} />} onClick={removeLogo}>Use the TNJA logo</Button>}
         </div>
-        <p className="mt-2 text-xs text-slate-400">Square images work best. Max 1 MB.</p>
+        <p className="mt-2 text-xs text-slate-400">
+          {settings.customLogo ? "Your uploaded logo is shown on the site and certificates." : "The TNJA logo is shown on the site and certificates. Upload another to replace it."} Square images work best. Max 1 MB.
+        </p>
       </Card>
 
       <Card className="p-5 sm:p-6">

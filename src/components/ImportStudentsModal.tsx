@@ -113,7 +113,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
               <p className="font-bold">{result.created} student{result.created === 1 ? "" : "s"} imported</p>
               <p className="mt-0.5">
                 Each has a permanent student ID.
-                {result.emailsQueued > 0 ? ` Login emails with a set-password link are being sent to ${result.emailsQueued} address${result.emailsQueued === 1 ? "" : "es"}.` : " No emails were sent — students can use “Forgot password” on the student login to get their link."}
+                {result.emailsQueued > 0 ? ` Registration emails with the username, password and registration PDF are being sent to ${result.emailsQueued} address${result.emailsQueued === 1 ? "" : "es"}.` : " No emails were sent — students can use “Forgot password” on the student login to get a password."}
                 {!!result.emailsSkipped && ` ${result.emailsSkipped} test address${result.emailsSkipped === 1 ? " was" : "es were"} skipped (e.g. @example.invalid).`}
               </p>
             </div>
@@ -198,7 +198,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
               {preview.valid > 0 && (
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input type="checkbox" checked={sendEmails} onChange={(e) => setSendEmails(e.target.checked)} className="h-4 w-4 accent-[#ff7400]" />
-                  Email each student their student ID and a link to set their password
+                  Email each student their username, password and registration PDF
                 </label>
               )}
             </div>

@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
-import { Award, Globe, LayoutGrid, Mail, Scale, ShieldCheck, Swords, Users } from "lucide-react";
+import { Award, Globe, LayoutGrid, Scale, ShieldCheck, Swords, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
 import { formatDateRange } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
@@ -14,7 +14,6 @@ import { OfficialsTab } from "./_components/OfficialsTab";
 import { DrawsTab } from "./_components/DrawsTab";
 import { ResultsTab } from "./_components/ResultsTab";
 import { PublishTab } from "./_components/PublishTab";
-import { EmailsTab } from "./_components/EmailsTab";
 import { WeighInTab } from "./_components/WeighInTab";
 
 const TABS = [
@@ -24,7 +23,6 @@ const TABS = [
   { id: "weigh-in", label: "Weigh-In", icon: Scale },
   { id: "draws", label: "Draws & Matches", icon: Swords },
   { id: "results", label: "Results & Certificates", icon: Award },
-  { id: "emails", label: "Emails", icon: Mail },
   { id: "publish", label: "Public page", icon: Globe },
 ] as const;
 
@@ -90,7 +88,6 @@ export default function TournamentPage() {
       {tab === "draws" && <DrawsTab tournament={tournament} onChange={reload} />}
       {tab === "results" && <ResultsTab tournament={tournament} onChange={reload} />}
       {tab === "publish" && <PublishTab tournament={tournament} onChange={reload} />}
-      {tab === "emails" && <EmailsTab tournament={tournament} />}
     </div>
   );
 }

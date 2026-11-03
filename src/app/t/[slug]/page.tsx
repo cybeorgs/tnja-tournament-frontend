@@ -3,11 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Award, CalendarDays, Download, Eye, IndianRupee, LayoutGrid, MapPin, Medal, Search, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
+import { Award, CalendarDays, CheckCircle2, Download, Eye, LayoutGrid, MapPin, Medal, Search, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { api, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
-import { categoryLabel, formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
-import { DRAW_FORMAT_LABEL, currentEntryFee, lateEntryFee, registrationPhase, type Draw, type Tournament } from "@/lib/types";
+import { categoryLabel, formatDateRange, formatDateTime, titleCase } from "@/lib/format";
+import { DRAW_FORMAT_LABEL, registrationPhase, type Draw, type Tournament } from "@/lib/types";
 import { Badge, Button, Card, DateInput, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
 import { Bracket } from "@/components/Bracket";
 import { PublicShell } from "@/components/PublicShell";
@@ -236,11 +236,10 @@ function CertificatesTab({ t }: { t: PublicDetail }) {
   );
 }
 
-/** Where registration stands right now (it follows the schedule and updates on its own), with the fee and a Register button. */
+/** Where registration stands right now (it follows the schedule and updates on its own), with a Register button. Registration is free. */
 function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
   const now = useNow();
   const phase = registrationPhase(t, now);
-  const fee = (n: number) => (n > 0 ? rupees(n) : "free");
   if (phase === "CLOSED") return null;
 
   return (
@@ -249,21 +248,19 @@ function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
         {phase === "NOT_OPEN" && (
           <>
             <p className="font-semibold text-slate-900">Registration opens on {formatDateTime(t.registrationOpensAt)}</p>
-            <p className="mt-0.5 text-slate-500">Entry fee {fee(t.entryFee)} until {formatDateTime(t.registrationClosesAt)}, then {fee(lateEntryFee(t))}.</p>
+            <p className="mt-0.5 text-slate-500">Registration is free. Regular registration runs until {formatDateTime(t.registrationClosesAt)}.</p>
           </>
         )}
         {phase === "OPEN" && (
           <>
-            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><IndianRupee size={15} className="text-brand" /> Entry fee {fee(t.entryFee)}</p>
-            <p className="mt-0.5 text-slate-500">
-              Until {formatDateTime(t.registrationClosesAt)}.{t.entryFee > 0 && ` After that, late registration costs ${fee(lateEntryFee(t))}.`}
-            </p>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><CheckCircle2 size={15} className="text-brand" /> Registration open — free</p>
+            <p className="mt-0.5 text-slate-500">Until {formatDateTime(t.registrationClosesAt)}, then late registration until the start.</p>
           </>
         )}
         {phase === "LATE" && (
           <>
             <p className="flex items-center gap-1.5 font-semibold text-slate-900">
-              <Badge color="red">Late registration</Badge> Entry fee {fee(currentEntryFee(t, now))}
+              <Badge color="red">Late registration</Badge> Free
             </p>
             <p className="mt-0.5 text-slate-500">Open until the tournament starts on {formatDateTime(t.startDate)}.</p>
           </>

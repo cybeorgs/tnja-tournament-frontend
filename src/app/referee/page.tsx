@@ -11,7 +11,6 @@ import { BackLink, Button, Card, Field, Select } from "@/components/ui";
 import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { RefereeFields, emptyReferee, validateReferee, type RefereeInput } from "@/components/RefereeFields";
-import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage } from "@/components/Toast";
 
 export default function RefereeRegistrationPage() {
@@ -31,7 +30,7 @@ export default function RefereeRegistrationPage() {
             loading={loading}
             error={error}
             onPick={setChosen}
-            showFee={false}
+            showClosing={false}
           />
         )}
       </div>
@@ -41,7 +40,6 @@ export default function RefereeRegistrationPage() {
 
 function OfficialForm({ tournament, onBack }: { tournament: Tournament; onBack: () => void }) {
   const meta = useMeta();
-  const emailOtp = useEmailOtp();
   const [form, setForm] = useState<RefereeInput>(emptyReferee);
   const [role, setRole] = useState("REFEREE");
   const [agreed, setAgreed] = useState(false);
@@ -53,14 +51,13 @@ function OfficialForm({ tournament, onBack }: { tournament: Tournament; onBack: 
     e.preventDefault();
     const problem =
       validateReferee(form) ??
-      (!emailOtp.tokenFor(form.email) ? "Please verify your email with the code we send." : null) ??
       (!agreed ? "Please confirm the details are correct." : null);
     setError(problem ?? "");
     if (problem) return;
 
     setBusy(true);
     try {
-      setDone(await api(`/public/tournaments/${tournament.slug}/officials`, { body: { ...form, role, emailVerificationToken: emailOtp.tokenFor(form.email) } }));
+      setDone(await api(`/public/tournaments/${tournament.slug}/officials`, { body: { ...form, role } }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -73,7 +70,7 @@ function OfficialForm({ tournament, onBack }: { tournament: Tournament; onBack: 
       <BackLink onClick={onBack}>All tournaments</BackLink>
       <Card className="overflow-hidden">
         <div className="border-b border-slate-100 bg-gradient-to-br from-brand-soft/80 to-white p-5 sm:p-6">
-          <TournamentSummary tournament={tournament} showFee={false} />
+          <TournamentSummary tournament={tournament} showClosing={false} />
         </div>
 
         <div className="p-5 sm:p-8">
@@ -94,7 +91,7 @@ function OfficialForm({ tournament, onBack }: { tournament: Tournament; onBack: 
                 </Select>
               </Field>
 
-              <RefereeFields value={form} onChange={setForm} emailOtp={emailOtp} />
+              <RefereeFields value={form} onChange={setForm} />
 
               {error && <p role="alert" className="animate-pop-in rounded-xl border border-red-100 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>}
 

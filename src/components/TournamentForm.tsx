@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMeta } from "@/lib/hooks";
-import { formatDateTime, fromLocalParts, rupees, titleCase, toDateInput, toLocalParts } from "@/lib/format";
-import { lateEntryFee, type Tournament } from "@/lib/types";
+import { formatDateTime, fromLocalParts, titleCase, toDateInput, toLocalParts } from "@/lib/format";
+import type { Tournament } from "@/lib/types";
 import { Button, DateInput, Field, Input, Select, Textarea, cx } from "./ui";
 
 /** Form state: dates and times are edited separately (local yyyy-mm-dd and HH:MM). */
-export type TournamentInput = Pick<Tournament, "title" | "description" | "venue" | "city" | "level" | "gender" | "ageGroups" | "entryFee" | "lateEntryFee"> & {
+export type TournamentInput = Pick<Tournament, "title" | "description" | "venue" | "city" | "level" | "gender" | "ageGroups"> & {
   startDate: string;
   startTime: string;
   endDate: string | null;
@@ -15,51 +15,44 @@ export type TournamentInput = Pick<Tournament, "title" | "description" | "venue"
   opensTime: string;
   closesDate: string;
   closesTime: string;
-  /** Deadline reminder email; an empty date means no reminder */
-  remindDate: string;
-  remindTime: string;
 };
 
 /** What the API takes: the start and the registration moments as ISO date-times. */
-export type TournamentPayload = Pick<Tournament, "title" | "description" | "venue" | "city" | "level" | "gender" | "ageGroups" | "entryFee" | "lateEntryFee"> & {
+export type TournamentPayload = Pick<Tournament, "title" | "description" | "venue" | "city" | "level" | "gender" | "ageGroups"> & {
   startDate: string;
   endDate: string | null;
   registrationOpensAt: string;
   registrationClosesAt: string;
-  reminderAt: string | null;
 };
 
 const today = () => toLocalParts(new Date().toISOString()).date;
 
 export const emptyTournament = (): TournamentInput => ({
   title: "", description: "", venue: "", city: "", startDate: "", startTime: "09:00", endDate: null,
-  opensDate: today(), opensTime: "09:00", closesDate: "", closesTime: "23:59", remindDate: "", remindTime: "10:00",
-  level: "STATE", gender: "BOTH", ageGroups: [], entryFee: 0, lateEntryFee: 0,
+  opensDate: today(), opensTime: "09:00", closesDate: "", closesTime: "23:59",
+  level: "STATE", gender: "BOTH", ageGroups: [],
 });
 
 export function fromTournament(t: Tournament): TournamentInput {
   const start = toLocalParts(t.startDate);
   const opens = toLocalParts(t.registrationOpensAt);
   const closes = toLocalParts(t.registrationClosesAt);
-  const remind = toLocalParts(t.reminderAt);
   return {
     title: t.title, description: t.description, venue: t.venue, city: t.city,
     startDate: start.date, startTime: start.time, endDate: t.endDate ? toDateInput(t.endDate) : null,
     opensDate: opens.date, opensTime: opens.time, closesDate: closes.date, closesTime: closes.time,
-    remindDate: remind.date, remindTime: remind.time || "10:00",
-    level: t.level, gender: t.gender, ageGroups: t.ageGroups, entryFee: t.entryFee, lateEntryFee: t.lateEntryFee,
+    level: t.level, gender: t.gender, ageGroups: t.ageGroups,
   };
 }
 
 function toPayload(f: TournamentInput): TournamentPayload {
-  const { startTime, opensDate, opensTime, closesDate, closesTime, remindDate, remindTime, ...rest } = f;
+  const { startTime, opensDate, opensTime, closesDate, closesTime, ...rest } = f;
   return {
     ...rest,
     startDate: fromLocalParts(f.startDate, startTime),
     endDate: f.endDate || null,
     registrationOpensAt: fromLocalParts(opensDate, opensTime),
     registrationClosesAt: fromLocalParts(closesDate, closesTime),
-    reminderAt: fromLocalParts(remindDate, remindTime) || null,
   };
 }
 
@@ -70,13 +63,8 @@ function scheduleProblem(p: TournamentPayload): string | null {
   if (!p.registrationClosesAt) return "Enter when regular registration closes.";
   if (p.registrationOpensAt >= p.registrationClosesAt) return "Regular registration must close after it opens.";
   if (p.registrationClosesAt > p.startDate) return "Regular registration must close before the tournament starts.";
-  if (p.reminderAt && (p.reminderAt <= p.registrationOpensAt || p.reminderAt >= p.registrationClosesAt)) {
-    return "The reminder email must be sent after registration opens and before regular registration closes.";
-  }
   return null;
 }
-
-const fee = (n: number) => (n > 0 ? rupees(n) : "no fee");
 
 function DateTimeField({ label, date, time, min, max, onDate, onTime }: {
   label: string; date: string; time: string; min?: string; max?: string; onDate: (v: string) => void; onTime: (v: string) => void;
@@ -104,17 +92,27 @@ function daysBetween(start: string, end: string | null) {
   return diff >= 0 ? diff + 1 : 1;
 }
 
-export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
+export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formId, onSavingChange }: {
   initial: TournamentInput;
   submitLabel: string;
   onSubmit: (data: TournamentPayload) => Promise<void>;
   /** Shows a Cancel button (editing an existing tournament) */
   onCancel?: () => void;
+  /** Lets a button outside the form submit it (<button type="submit" form={formId}>) */
+  formId?: string;
+  /** Tells that outside button when saving starts and ends */
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const meta = useMeta();
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // The form is long and may be submitted from a bar at the top: bring a problem into view.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
+  useEffect(() => onSavingChange?.(saving), [saving, onSavingChange]);
 
   const set = <K extends keyof TournamentInput>(key: K, value: TournamentInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -126,10 +124,10 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     setError("");
     const problem =
       scheduleProblem(payload) ??
-      (form.lateEntryFee < form.entryFee ? "The late entry fee can't be lower than the regular entry fee." : null) ??
       (!form.ageGroups.length ? "Pick at least one age group." : null);
     if (problem) return setError(problem);
     setSaving(true);
@@ -143,7 +141,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form id={formId} onSubmit={submit} className="space-y-5">
       <Field label="Tournament title">
         <Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. State Judo Championship 2026" required />
       </Field>
@@ -217,31 +215,12 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
             onDate={(v) => set("closesDate", v)}
             onTime={(v) => set("closesTime", v)}
           />
-          <Field label="Regular entry fee (₹)" hint="Until regular registration closes. 0 for a free event.">
-            <Input type="number" min={0} value={form.entryFee} onChange={(e) => set("entryFee", Number(e.target.value))} />
-          </Field>
-          <Field
-            label="Late entry fee (₹)"
-            hint="From the regular deadline until the tournament starts — also for registrations still unpaid at the deadline."
-            error={form.lateEntryFee < form.entryFee ? "Can't be lower than the regular fee" : undefined}
-          >
-            <Input type="number" min={form.entryFee} value={form.lateEntryFee} onChange={(e) => set("lateEntryFee", Number(e.target.value))} />
-          </Field>
-          <Field label="Deadline reminder email" group hint="Sent to players who haven't paid yet. Leave the date empty for no reminder." className="sm:col-span-2">
-            <div className="grid grid-cols-[1fr_8rem] gap-2 sm:max-w-md">
-              <DateInput value={form.remindDate} min={form.opensDate} max={form.closesDate || undefined} onChange={(v) => set("remindDate", v)} />
-              <Input type="time" value={form.remindTime} onChange={(e) => set("remindTime", e.target.value)} disabled={!form.remindDate} aria-label="Reminder time" />
-            </div>
-          </Field>
         </div>
         {!scheduleProblem(payload) && (
           <ol className="space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens at {fee(form.entryFee)}</li>
-            {payload.reminderAt && (
-              <li><span className="font-semibold text-slate-800">{formatDateTime(payload.reminderAt)}</span> — reminder emailed to players who haven&apos;t paid</li>
-            )}
+            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens (free)</li>
             {payload.registrationClosesAt < payload.startDate && (
-              <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationClosesAt)}</span> — late registration at {fee(lateEntryFee(form))}</li>
+              <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationClosesAt)}</span> — regular registration closes; late entries until the start</li>
             )}
             <li><span className="font-semibold text-slate-800">{formatDateTime(payload.startDate)}</span> — tournament starts, registration closes</li>
           </ol>
@@ -250,16 +229,21 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
 
       <div>
         <p className="mb-2 text-[13px] font-medium text-slate-700">Age groups</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => meta && set("ageGroups", allSelected ? [] : meta.ageGroups.map((g) => g.name))}
-            title={allSelected ? "Clear all" : "Select every age group"}
-            aria-pressed={allSelected}
-            className={cx("rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", allSelected ? "border-brand bg-brand text-white" : "border-dashed border-brand/50 bg-brand-soft text-brand hover:border-brand")}
-          >
-            All
-          </button>
+        {/* "All" on its own row, then the age groups in an even grid: name on the left, ages on the right */}
+        <button
+          type="button"
+          onClick={() => meta && set("ageGroups", allSelected ? [] : meta.ageGroups.map((g) => g.name))}
+          title={allSelected ? "Clear all" : "Select every age group"}
+          aria-pressed={allSelected}
+          className={cx(
+            "mb-2 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm font-semibold transition-colors sm:w-auto sm:min-w-[12rem]",
+            allSelected ? "border-brand bg-brand text-white" : "border-dashed border-brand/50 bg-brand-soft text-brand hover:border-brand",
+          )}
+        >
+          <span>All age groups</span>
+          <span className={cx("ml-4 text-xs", allSelected ? "text-white/80" : "text-brand/70")}>{form.ageGroups.length}/{meta?.ageGroups.length ?? 0}</span>
+        </button>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {meta?.ageGroups.map((g) => {
             const on = form.ageGroups.includes(g.name);
             return (
@@ -268,9 +252,13 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
                 key={g.name}
                 onClick={() => toggleAgeGroup(g.name)}
                 aria-pressed={on}
-                className={cx("rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", on ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}
+                className={cx(
+                  "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors",
+                  on ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                )}
               >
-                {g.name} <span className={on ? "text-white/80" : "text-slate-400"}>({g.minAge}{g.maxAge < 100 ? `–${g.maxAge}` : "+"})</span>
+                <span className="min-w-0">{g.name}</span>
+                <span className={cx("shrink-0 text-xs font-medium", on ? "text-white/80" : "text-slate-400")}>{g.minAge}{g.maxAge < 100 ? `–${g.maxAge}` : "+"}</span>
               </button>
             );
           })}
@@ -282,7 +270,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel }: {
         <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={4} />
       </Field>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <p ref={errorRef} className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="flex justify-end gap-2">
         {onCancel && <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>}
         <Button type="submit" loading={saving}>{submitLabel}</Button>

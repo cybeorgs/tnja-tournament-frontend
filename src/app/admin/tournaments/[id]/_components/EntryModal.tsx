@@ -9,7 +9,6 @@ import { GENDER_LABEL, formatDate } from "@/lib/format";
 import type { Gender, Paged, Registration, Student, TournamentDetail } from "@/lib/types";
 import { Button, Field, Input, Modal, Select, cx } from "@/components/ui";
 import { StudentFields, emptyStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
-import { useEmailOtp } from "@/components/EmailOtpField";
 import { errorMessage, useToast } from "@/components/Toast";
 
 /** Add a new entry (existing or new student), or edit an entry's category. */
@@ -34,7 +33,6 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
   /** Boys' or girls' categories, for students whose gender is Other */
   const [competeAs, setCompeteAs] = useState<Gender | "">(editing?.gender ?? lockGender ?? "");
   const [saving, setSaving] = useState(false);
-  const emailOtp = useEmailOtp();
 
   // Search the master student list as the organiser types.
   useEffect(() => {
@@ -78,7 +76,6 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
     if (!editing && mode === "new") {
       const problem = validateStudent({ ...newStudent, gender: lockGender ?? newStudent.gender });
       if (problem) return toast(problem, false);
-      if (!emailOtp.tokenFor(newStudent.email)) return toast("Verify the student's email address — send the code and enter it.", false);
     }
     if (!person) return toast("Pick or enter a student first.", false);
     if (!catGender) return toast("Choose boys' or girls' categories.", false);
@@ -93,7 +90,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
         toast("Entry updated.");
       } else {
         await api(`/tournaments/${tournament.id}/registrations`, {
-          body: mode === "existing" ? { ...body, studentId: picked!.id } : { ...body, student: { ...newStudent, gender: lockGender ?? newStudent.gender }, emailVerificationToken: emailOtp.tokenFor(newStudent.email) },
+          body: mode === "existing" ? { ...body, studentId: picked!.id } : { ...body, student: { ...newStudent, gender: lockGender ?? newStudent.gender } },
         });
         toast(groups.length > 1 ? `Student registered in ${groups.length} categories.` : "Student registered.");
       }
@@ -170,7 +167,7 @@ export function EntryModal({ tournament, editing, onClose, onSaved }: { tourname
 
       {!editing && mode === "new" && (
         <div className="mb-5">
-          <StudentFields value={newStudent} onChange={setNewStudent} lockGender={lockGender} emailOtp={emailOtp} />
+          <StudentFields value={newStudent} onChange={setNewStudent} lockGender={lockGender} />
         </div>
       )}
 

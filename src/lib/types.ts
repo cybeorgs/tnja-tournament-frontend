@@ -15,6 +15,8 @@ export interface Settings {
   signatory2Name: string;
   signatory2Title: string;
   hasLogo: boolean;
+  /** false while the built-in TNJA logo is used */
+  customLogo?: boolean;
   updatedAt: string;
   /** Public settings only: self-registration asks for Aadhaar verification through DigiLocker */
   aadhaarVerification?: boolean;
@@ -38,19 +40,13 @@ export interface Tournament {
   /** Date and time the tournament starts; registration closes at this moment */
   startDate: string;
   endDate: string | null;
-  /** Registration opens (regular fee) */
+  /** Registration opens */
   registrationOpensAt: string;
-  /** Regular registration ends; late registration at 2 × the fee runs until the start */
+  /** Regular registration ends; late registration runs from here until the start */
   registrationClosesAt: string;
-  /** When the deadline reminder is emailed to players with unpaid entries; null = none */
-  reminderAt: string | null;
   level: string;
   gender: "MALE" | "FEMALE" | "BOTH";
   ageGroups: string[];
-  /** Regular entry fee */
-  entryFee: number;
-  /** Late entry fee set by the admin (not lower than the regular fee) */
-  lateEntryFee: number;
   numberOfMats: number;
   status: TournamentStatus;
   publishedAt: string | null;
@@ -67,38 +63,16 @@ export interface TournamentDetail extends Tournament {
   stats: {
     /** Entries (a player may enter several age groups) */
     registrations: number;
-    paid: number;
-    collected: number;
     referees: number;
     categories: number;
     draws: number;
     concludedDraws: number;
     players: number;
-    /** Players with every entry settled */
-    paidPlayers: number;
-    playersOwing: number;
-    pendingPayments: number;
-    pendingAmount: number;
     regularEntries: number;
     lateEntries: number;
-    regularRevenue: number;
-    lateRevenue: number;
+    /** Entries whose weigh-in is cleared */
+    weighedIn: number;
   };
-}
-
-export type EmailKind = "CONFIRMATION" | "REMINDER" | "PAYMENT";
-
-export interface EmailLogEntry {
-  id: string;
-  studentId: string | null;
-  studentName: string | null;
-  kind: EmailKind;
-  trigger: "AUTO" | "MANUAL";
-  toEmail: string;
-  subject: string;
-  status: "SENT" | "FAILED" | "NOT_CONFIGURED";
-  error: string;
-  createdAt: string;
 }
 
 export interface Student {
@@ -164,16 +138,9 @@ export interface Registration {
   weighedAt: string | null;
   placement: Placement | null;
   certificateNo: string | null;
-  paymentStatus: "PENDING" | "PAID" | "WAIVED";
-  paymentMode: string | null;
   /** Entered during late registration */
   isLate: boolean;
-  /** What this entry costs (entry fee, or late entry fee for a late entry) */
-  fee: number;
-  amountPaid: number;
-  razorpayPaymentId: string | null;
   createdAt: string;
-  paidAt: string | null;
   student: Student;
 }
 
@@ -274,9 +241,8 @@ export interface CategorySummary {
   gender: Gender;
   weightCategory: string;
   entrants: number;
-  paid: number;
   /** Weigh-in progress of the players taking part (disqualified ones are counted separately) */
-  weighIn: { cleared: number; pending: number; pendingPaid: number; disqualified: number };
+  weighIn: { cleared: number; pending: number; disqualified: number };
   draw: null | {
     id: string;
     format: Draw["format"];
@@ -298,23 +264,18 @@ export interface Paged<T> {
 
 /**
  * Registration runs on the tournament's schedule (the backend enforces the same rules):
- * NOT_OPEN before it opens · OPEN at the entry fee · LATE at the admin's late entry fee until the start · CLOSED from the start.
- * Unpaid entries owe the fee of the period they are paid in.
+ * NOT_OPEN before it opens · OPEN (regular) · LATE (late registration) until the start · CLOSED from the start.
+ * Registration is free.
  */
 export type RegistrationPhase = "NOT_OPEN" | "OPEN" | "LATE" | "CLOSED";
 
-type ScheduleFields = Pick<Tournament, "registrationOpensAt" | "registrationClosesAt" | "startDate" | "entryFee" | "lateEntryFee" | "status">;
+type ScheduleFields = Pick<Tournament, "registrationOpensAt" | "registrationClosesAt" | "startDate" | "status">;
 
 export function registrationPhase(t: ScheduleFields, now = new Date()): RegistrationPhase {
   if (t.status === "COMPLETED" || now >= new Date(t.startDate)) return "CLOSED";
   if (now < new Date(t.registrationOpensAt)) return "NOT_OPEN";
   return now < new Date(t.registrationClosesAt) ? "OPEN" : "LATE";
 }
-
-export const lateEntryFee = (t: Pick<Tournament, "lateEntryFee">) => t.lateEntryFee;
-
-/** Fee for an entry made now: the late entry fee during late registration. */
-export const currentEntryFee = (t: ScheduleFields, now = new Date()) => (registrationPhase(t, now) === "LATE" ? lateEntryFee(t) : t.entryFee);
 
 /** The next moment the phase changes (open, regular close, start), so pages can update right then. */
 export function nextPhaseChange(t: ScheduleFields, now = new Date()): Date | null {

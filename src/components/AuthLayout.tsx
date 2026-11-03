@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useSettings } from "@/lib/hooks";
-import { Brand, logoUrl } from "./Brand";
+import { Brand, brandLogo } from "./Brand";
 
 /** Split screen used by the start page and admin login: brand panel on the left, content on the right. */
 export function AuthLayout({ children }: { children: ReactNode }) {
@@ -10,15 +10,13 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <main className="grid min-h-screen bg-white lg:grid-cols-2">
       {/* Brand panel — everything shown here comes from the organisation's settings. */}
-      <aside className="relative m-3 hidden overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand via-orange-500 to-amber-400 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <aside className="relative m-3 hidden overflow-hidden rounded-[0.2rem] bg-gradient-to-br from-brand via-orange-500 to-amber-400 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-white/5" />
 
         <div className="relative flex items-center gap-3">
-          {settings?.hasLogo && (
-            // eslint-disable-next-line @next/next/no-img-element -- served by the API, size unknown
-            <img src={logoUrl(settings)} alt="" className="h-12 w-12 rounded-xl bg-white object-contain p-1" />
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element -- served by the API, size unknown */}
+          <img src={brandLogo(settings)} alt="" className="h-16 w-16 rounded-full bg-white object-contain p-1.5 shadow-md ring-4 ring-white/40" />
           {settings ? (
             <span className="text-lg font-bold">{settings.orgShortName}</span>
           ) : (

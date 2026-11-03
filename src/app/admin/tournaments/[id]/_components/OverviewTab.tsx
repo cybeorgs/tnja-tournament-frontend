@@ -4,9 +4,9 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, CheckCircle2, Circle, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
+import { formatDateRange, formatDateTime, titleCase } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
-import { lateEntryFee, registrationPhase, type RegistrationPhase, type TournamentDetail } from "@/lib/types";
+import { registrationPhase, type RegistrationPhase, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, Field, Input, Modal } from "@/components/ui";
 import { TournamentForm, fromTournament } from "@/components/TournamentForm";
 import { errorMessage, useToast } from "@/components/Toast";
@@ -70,13 +70,13 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Registered players", value: s.players, sub: `${s.registrations} entries` },
-            { label: "Paid players", value: s.paidPlayers, sub: s.playersOwing ? `${s.playersOwing} still owe` : "All settled", tone: "text-emerald-600" },
-            { label: "Pending payments", value: s.pendingPayments, sub: s.pendingAmount ? `${rupees(s.pendingAmount)} due` : "Nothing due", tone: s.pendingPayments ? "text-amber-600" : undefined },
-            { label: "Total collected", value: rupees(s.collected), sub: `${s.paid} paid entries`, tone: "text-emerald-600" },
-            { label: "Regular registrations", value: s.regularEntries, sub: `Revenue ${rupees(s.regularRevenue)}` },
-            { label: "Late registrations", value: s.lateEntries, sub: `Revenue ${rupees(s.lateRevenue)}` },
-            { label: "Regular revenue", value: rupees(s.regularRevenue), sub: `Fee ${rupees(tournament.entryFee)}` },
-            { label: "Late revenue", value: rupees(s.lateRevenue), sub: `Fee ${rupees(tournament.lateEntryFee)}` },
+            { label: "Entries per player", value: s.players ? (s.registrations / s.players).toFixed(1) : "0", sub: "Cadet / Junior / Senior…" },
+            { label: "Regular registrations", value: s.regularEntries, sub: "Before the regular deadline" },
+            { label: "Late registrations", value: s.lateEntries, sub: "After the regular deadline", tone: s.lateEntries ? "text-amber-600" : undefined },
+            { label: "Weighed in", value: s.weighedIn, sub: `of ${s.registrations} entries`, tone: s.registrations && s.weighedIn === s.registrations ? "text-emerald-600" : undefined },
+            { label: "Categories", value: s.categories, sub: `${s.draws} drawn` },
+            { label: "Officials", value: s.referees, sub: `${tournament.numberOfMats} mat${tournament.numberOfMats === 1 ? "" : "s"}` },
+            { label: "Concluded", value: `${s.concludedDraws}/${s.draws}`, sub: "Categories with results", tone: s.draws && s.concludedDraws === s.draws ? "text-emerald-600" : undefined },
           ].map((x) => (
             <Card key={x.label} className="p-4">
               <p className={`text-lg font-bold ${x.tone ?? "text-slate-900"}`}>{x.value}</p>
@@ -131,17 +131,16 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
 const GENDER_LABEL = { BOTH: "Boys and girls", MALE: "Boys / men only", FEMALE: "Girls / women only" } as const;
 const PHASE_LABEL: Record<RegistrationPhase, string> = { NOT_OPEN: "Not open yet", OPEN: "Open", LATE: "Late registration", CLOSED: "Closed" };
 const PHASE_COLOR = { NOT_OPEN: "slate", OPEN: "green", LATE: "red", CLOSED: "slate" } as const;
-const fee = (n: number) => (n > 0 ? rupees(n) : "Free");
 
 /** Read-only view of the tournament (Edit switches to the form), led by the live registration status. */
 function TournamentDetails({ tournament: t, onEditDates }: { tournament: TournamentDetail; onEditDates: () => void }) {
   const now = useNow();
   const phase = registrationPhase(t, now);
   const status: Record<RegistrationPhase, string> = {
-    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)} at ${fee(t.entryFee)}.`,
-    OPEN: `Entries cost ${fee(t.entryFee)} until ${formatDateTime(t.registrationClosesAt)}, then ${fee(lateEntryFee(t))}.`,
-    LATE: `Late entries cost ${fee(lateEntryFee(t))} until the tournament starts on ${formatDateTime(t.startDate)}.`,
-    CLOSED: "No new entries or payments.",
+    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)}. Registration is free.`,
+    OPEN: `Free registration until ${formatDateTime(t.registrationClosesAt)}, then late entries until the start.`,
+    LATE: `Late entries until the tournament starts on ${formatDateTime(t.startDate)}.`,
+    CLOSED: "No new entries.",
   };
 
   return (
@@ -165,9 +164,7 @@ function TournamentDetails({ tournament: t, onEditDates }: { tournament: Tournam
         <Detail label="Dates">{formatDateRange(t.startDate, t.endDate)}</Detail>
         <Detail label="Registration opens">{formatDateTime(t.registrationOpensAt)}</Detail>
         <Detail label="Regular registration closes">{formatDateTime(t.registrationClosesAt)}</Detail>
-        <Detail label="Deadline reminder email">{t.reminderAt ? formatDateTime(t.reminderAt) : "Not scheduled"}</Detail>
-        <Detail label="Entry fee">{fee(t.entryFee)}</Detail>
-        <Detail label="Late entry fee">{fee(lateEntryFee(t))}</Detail>
+        <Detail label="Registration">Free</Detail>
         <Detail label="Level">{titleCase(t.level)}</Detail>
         <Detail label="Open to">{GENDER_LABEL[t.gender]}</Detail>
         <Detail label="Age groups" wide>

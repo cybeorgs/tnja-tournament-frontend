@@ -3,7 +3,6 @@
 import type { Referee } from "@/lib/types";
 import { useLocations } from "@/lib/locations";
 import { Field, Input, Select } from "./ui";
-import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 import { PhoneInput } from "./StudentFields";
 
 export type RefereeInput = Pick<Referee, "fullName" | "grade" | "district" | "phone" | "email">;
@@ -20,12 +19,9 @@ export function validateReferee(f: RefereeInput): string | null {
   return null;
 }
 
-export function RefereeFields({ value, onChange, emailOtp, savedEmail }: {
+export function RefereeFields({ value, onChange }: {
   value: RefereeInput;
   onChange: (v: RefereeInput) => void;
-  emailOtp: EmailOtp;
-  /** Email already on file (editing); keeping it needs no new code */
-  savedEmail?: string;
 }) {
   const locations = useLocations();
   const set = <K extends keyof RefereeInput>(k: K, v: RefereeInput[K]) => onChange({ ...value, [k]: v });
@@ -52,7 +48,9 @@ export function RefereeFields({ value, onChange, emailOtp, savedEmail }: {
       <Field label="Mobile" hint="Used to find their certificate" className="sm:col-span-2">
         <PhoneInput value={value.phone} onChange={(v) => set("phone", v)} />
       </Field>
-      <EmailOtpField value={value.email} onChange={(v) => set("email", v)} otp={emailOtp} savedEmail={savedEmail} className="sm:col-span-2" />
+<Field label="Email" required hint="Becomes the username for logging in" className="sm:col-span-2">
+        <Input type="email" placeholder="name@example.com" value={value.email} onChange={(e) => set("email", e.target.value.replace(/[^a-zA-Z0-9@._+-]/g, ""))} />
+      </Field>
     </div>
   );
 }

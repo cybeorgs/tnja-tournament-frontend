@@ -96,7 +96,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
                 <span className="font-medium text-slate-700">{r.tournament.title}</span>
                 <span className="flex items-center gap-2 text-slate-500">
                   {r.ageGroup} {r.weightCategory}
-                  <Badge color={r.paymentStatus === "PENDING" ? "yellow" : "green"}>{r.paymentStatus === "PENDING" ? "Fee pending" : r.paymentStatus === "PAID" ? "Paid" : "Waived"}</Badge>
+                  <Badge color={r.isLate ? "yellow" : "green"}>{r.isLate ? "Late entry" : "Registered"}</Badge>
                 </span>
               </li>
             ))}

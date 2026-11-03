@@ -6,9 +6,9 @@ import type { Gender, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, useLocations } from "@/lib/locations";
 import { DateInput, Field, Input, Select, cx } from "./ui";
-import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
+import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 
 /**
  * Full student registration form (same details as the main TNJA player registration).
@@ -96,16 +96,14 @@ function ageFrom(dob: string): number | null {
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, savedEmail, docs, onDocsChange }: {
+export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, docs, onDocsChange }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
-  /** Require the email to be verified with a code */
+  /** Shows a Verify button next to the email (public registration) */
   emailOtp?: EmailOtp;
   /** Require the Aadhaar to be verified with DigiLocker, its pincode matching the residing pincode (public registration) */
   digilocker?: AadhaarDigilocker;
-  /** Email already on file (editing); keeping it needs no new code */
-  savedEmail?: string;
   /** Ask for BPL proof / proof of nativity (public registration) */
   docs?: StudentDocs;
   onDocsChange?: (d: StudentDocs) => void;
@@ -226,9 +224,9 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
           <Input value={value.nationality} onChange={(e) => set("nationality", letters(e.target.value))} />
         </Field>
         {emailOtp ? (
-          <EmailOtpField value={value.email} onChange={(v) => set("email", v)} otp={emailOtp} savedEmail={savedEmail} className="sm:col-span-2 lg:col-span-3" />
+          <EmailOtpField value={value.email} onChange={(v) => set("email", v)} otp={emailOtp} className="sm:col-span-2 lg:col-span-3" />
         ) : (
-          <Field label="Email" required className="sm:col-span-2">
+          <Field label="Email" required hint="Becomes the username for logging in" className="sm:col-span-2">
             <Input type="email" placeholder="name@example.com" value={value.email} onChange={(e) => set("email", e.target.value.replace(/[^a-zA-Z0-9@._+-]/g, ""))} />
           </Field>
         )}

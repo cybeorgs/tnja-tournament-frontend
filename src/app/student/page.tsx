@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Clock, IndianRupee, KeyRound, LogOut, Trophy, XCircle } from "lucide-react";
+import { ChevronDown, Clock, KeyRound, LogOut, Trophy, XCircle } from "lucide-react";
 import { studentApi, studentAuth, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
-import { formatDate, formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
-import { useNow } from "@/lib/hooks";
-import { openCheckout, type PaymentOrder } from "@/lib/razorpay";
+import { formatDate, formatDateRange, titleCase } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PublicShell } from "@/components/PublicShell";
@@ -69,7 +67,7 @@ export default function StudentHomePage() {
           <Card><EmptyState title="No students on this account">Register from the tournament page first.</EmptyState></Card>
         ) : (
           <div className="space-y-4">
-            {me.students.map((s) => <StudentCard key={s.id} student={s} onEnter={() => setEntering(s)} onPaid={load} />)}
+            {me.students.map((s) => <StudentCard key={s.id} student={s} onEnter={() => setEntering(s)} />)}
           </div>
         )}
 
@@ -82,9 +80,9 @@ export default function StudentHomePage() {
   );
 }
 
-function StudentCard({ student: s, onEnter, onPaid }: { student: MyStudent; onEnter: () => void; onPaid: () => void }) {
+function StudentCard({ student: s, onEnter }: { student: MyStudent; onEnter: () => void }) {
   const [showDetails, setShowDetails] = useState(false);
-  // Entries grouped by tournament, so each tournament's unpaid fees are paid together.
+  // Entries grouped by tournament.
   const byTournament = [...new Map(s.registrations.map((r) => [r.tournament.id, r.tournament])).values()].map((t) => ({
     tournament: t,
     entries: s.registrations.filter((r) => r.tournament.id === t.id),
@@ -98,6 +96,7 @@ function StudentCard({ student: s, onEnter, onPaid }: { student: MyStudent; onEn
           <p className="truncate text-lg font-bold text-slate-900">{s.fullName}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
             {s.studentNo && <span className="rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-xs font-semibold text-brand">{s.studentNo}</span>}
+            {!s.studentNo && s.tempId && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-amber-700" title="Temporary ID until approval">{s.tempId}</span>}
             <span>Born {formatDate(s.dob)}</span>
           </div>
         </div>
@@ -106,7 +105,7 @@ function StudentCard({ student: s, onEnter, onPaid }: { student: MyStudent; onEn
 
       {s.status === "PENDING" && (
         <p className="flex items-start gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
-          <Clock size={16} className="mt-0.5 shrink-0" /> Waiting for approval — we&apos;ll email you when your documents are checked.
+          <Clock size={16} className="mt-0.5 shrink-0" /> Waiting for approval — once your documents are checked we&apos;ll email your registration PDF with your permanent student ID.
         </p>
       )}
       {s.status === "REJECTED" && (
@@ -118,7 +117,7 @@ function StudentCard({ student: s, onEnter, onPaid }: { student: MyStudent; onEn
       {byTournament.length > 0 && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {byTournament.map(({ tournament, entries }) => (
-            <TournamentEntries key={tournament.id} studentId={s.id} tournament={tournament} entries={entries} onPaid={onPaid} />
+            <TournamentEntries key={tournament.id} tournament={tournament} entries={entries} />
           ))}
         </ul>
       )}
@@ -137,38 +136,19 @@ function StudentCard({ student: s, onEnter, onPaid }: { student: MyStudent; onEn
   );
 }
 
-/** One tournament's entries for a student, with a Pay button for any unpaid fees. */
-function TournamentEntries({ studentId, tournament, entries, onPaid }: { studentId: string; tournament: MyRegistration["tournament"]; entries: MyRegistration[]; onPaid: () => void }) {
-  const toast = useToast();
-  const [paying, setPaying] = useState(false);
-  const due = entries.filter((r) => r.paymentStatus === "PENDING").reduce((sum, r) => sum + r.fee, 0);
-  // Payments close when the tournament starts (registration closes then too).
-  const now = useNow();
-  const canPay = due > 0 && tournament.status === "PUBLISHED" && now < new Date(tournament.startDate);
+const WEIGH_IN = {
+  PENDING: { label: "Weigh-in pending", color: "slate" },
+  CLEARED: { label: "Weighed in", color: "green" },
+  DISQUALIFIED: { label: "Disqualified at weigh-in", color: "red" },
+} as const;
 
-  async function pay() {
-    setPaying(true);
-    try {
-      const base = `/student/tournaments/${tournament.id}/payment`;
-      const order = await studentApi<PaymentOrder>(base, { body: { studentId } });
-      await openCheckout(order, tournament.title, (resp) => studentApi(`${base}/verify`, { body: resp }));
-      toast("Payment received. You're registered!");
-      onPaid();
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setPaying(false);
-    }
-  }
-
+/** One tournament's entries (events) for a student. Registration is free, so every entry is confirmed. */
+function TournamentEntries({ tournament, entries }: { tournament: MyRegistration["tournament"]; entries: MyRegistration[] }) {
   return (
     <li className="px-5 py-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <Link href={`/t/${tournament.slug}`} className="font-semibold text-slate-800 hover:text-brand">{tournament.title}</Link>
-          <p className="text-xs text-slate-500">{formatDateRange(tournament.startDate, tournament.endDate)}</p>
-        </div>
-        {canPay && <Button size="sm" icon={<IndianRupee size={14} />} loading={paying} onClick={pay}>Pay {rupees(due)}</Button>}
+      <div className="min-w-0">
+        <Link href={`/t/${tournament.slug}`} className="font-semibold text-slate-800 hover:text-brand">{tournament.title}</Link>
+        <p className="text-xs text-slate-500">{formatDateRange(tournament.startDate, tournament.endDate)} · {entries.length} event{entries.length === 1 ? "" : "s"}</p>
       </div>
       <ul className="mt-2 space-y-1.5">
         {entries.map((r) => (
@@ -176,15 +156,12 @@ function TournamentEntries({ studentId, tournament, entries, onPaid }: { student
             <span className="text-slate-700">{r.ageGroup} · {r.weightCategory}</span>
             <span className="flex items-center gap-1.5">
               {r.isLate && <Badge color="red">Late</Badge>}
-              {r.paymentStatus === "PENDING" && <Badge color="yellow">Payment pending · {rupees(r.fee)}</Badge>}
-              {r.paymentStatus === "PAID" && <Badge color="green">Paid {rupees(r.amountPaid)}</Badge>}
-              {r.paymentStatus === "WAIVED" && <Badge color="green">Registered</Badge>}
+              <Badge color="green">Registered</Badge>
+              <Badge color={WEIGH_IN[r.weighInStatus].color}>{WEIGH_IN[r.weighInStatus].label}</Badge>
             </span>
           </li>
         ))}
       </ul>
-      {canPay && <p className="mt-2 text-xs text-slate-500">Pay before the tournament starts on {formatDateTime(tournament.startDate)}.</p>}
-      {due > 0 && !canPay && <p className="mt-2 text-xs text-amber-700">The tournament has started, so this fee can no longer be paid online. Please contact the organiser.</p>}
     </li>
   );
 }

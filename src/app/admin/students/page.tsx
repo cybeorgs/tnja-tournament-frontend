@@ -12,12 +12,10 @@ import { PeopleList } from "@/components/PeopleList";
 import { StatusBadge, StudentDetailModal } from "@/components/StudentDetail";
 import { useApi } from "@/lib/hooks";
 import { StudentFields, emptyStudent, fromStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
-import { useEmailOtp } from "@/components/EmailOtpField";
 
 /** The form plus the email on file when editing (keeping it needs no new code). */
 type StudentForm = StudentInput & { savedEmail?: string };
 
-const sameEmail = (a = "", b = "") => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export default function StudentsPage() {
   const [viewing, setViewing] = useState<string | null>(null);
@@ -25,7 +23,6 @@ export default function StudentsPage() {
   // Bumped after approving/rejecting so the list and the count reload.
   const [version, setVersion] = useState(0);
   const { data: pending } = useApi<Paged<Student>>(`/students?pageSize=1&status=PENDING&v=${version}`);
-  const emailOtp = useEmailOtp();
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -75,14 +72,13 @@ export default function StudentsPage() {
         searchPlaceholder="Search name, ID, club or phone"
         empty={emptyStudent}
         toForm={(s) => ({ ...fromStudent(s), savedEmail: s.email })}
-        toBody={(f) => ({ ...f, savedEmail: undefined, emailVerificationToken: emailOtp.tokenFor(f.email) ?? undefined })}
+        toBody={(f) => ({ ...f, savedEmail: undefined })}
         validate={(f) =>
-          validateStudent(f) ??
-          (!sameEmail(f.savedEmail, f.email) && !emailOtp.tokenFor(f.email) ? "Please verify the email with the code we send." : null)
+          validateStudent(f)
         }
         wideForm
         renderForm={(value, onChange) => (
-          <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} emailOtp={emailOtp} savedEmail={value.savedEmail} />
+          <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} />
         )}
         onView={(s) => setViewing(s.id)}
         columns={[

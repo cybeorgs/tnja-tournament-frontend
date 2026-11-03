@@ -41,7 +41,7 @@ export function DrawsTab({ tournament, onChange }: { tournament: TournamentDetai
   async function generateAll() {
     setGeneratingAll(true);
     try {
-      const res = await api<{ created: number; skipped: string[] }>(`/tournaments/${tournament.id}/draws/generate-all`, { body: { format: "AUTO", onlyPaid: tournament.entryFee > 0 } });
+      const res = await api<{ created: number; skipped: string[] }>(`/tournaments/${tournament.id}/draws/generate-all`, { body: { format: "AUTO" } });
       toast(res.created ? `Generated ${res.created} draw(s).` : "Every category already has a draw.");
       if (res.skipped.length) toast(`Skipped: ${res.skipped.join("; ")}`, false);
       refresh();
@@ -62,9 +62,8 @@ export function DrawsTab({ tournament, onChange }: { tournament: TournamentDetai
     );
   }
 
-  // Sections still waiting for weigh-in can't be drawn (counting only paid entries when unpaid ones are left out).
-  const onlyPaid = tournament.entryFee > 0;
-  const toWeigh = (c: CategorySummary) => (onlyPaid ? c.weighIn.pendingPaid : c.weighIn.pending);
+  // Sections still waiting for weigh-in can't be drawn.
+  const toWeigh = (c: CategorySummary) => c.weighIn.pending;
   const undrawn = categories.filter((c) => !c.draw);
   const readyToDraw = undrawn.filter((c) => toWeigh(c) === 0).length;
   const heldForWeighIn = undrawn.length - readyToDraw;
@@ -180,7 +179,6 @@ function CategoryPanel({ tournament, category, onChange }: { tournament: Tournam
         <h2 className="text-lg font-bold text-slate-900">{categoryLabel(category)}</h2>
         <p className="text-sm text-slate-500">
           {category.entrants} entr{category.entrants === 1 ? "y" : "ies"}
-          {tournament.entryFee > 0 && ` · ${category.paid} paid`}
           {draw && ` · ${DRAW_FORMAT_LABEL[draw.format] ?? draw.format} · ${draw.matchesDone}/${draw.matchesTotal} matches played`}
         </p>
       </div>
@@ -287,12 +285,11 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
   /** The manual draw, for the players and format it was made for */
   const [manual, setManual] = useState<{ key: string; value: ManualValue } | null>(null);
   const [seeds, setSeeds] = useState<string[]>(["", "", "", ""]);
-  const [onlyPaid, setOnlyPaid] = useState(tournament.entryFee > 0);
   const [mat, setMat] = useState(existing?.matNumber ?? 1);
   const [saving, setSaving] = useState(false);
   const [confirmForce, setConfirmForce] = useState(false);
 
-  const entrants = (registrations ?? []).filter((r) => keyOf(r) === keyOf(category) && r.weighInStatus !== "DISQUALIFIED" && (!onlyPaid || r.paymentStatus !== "PENDING"));
+  const entrants = (registrations ?? []).filter((r) => keyOf(r) === keyOf(category) && r.weighInStatus !== "DISQUALIFIED");
   // Weigh-in first: the draw is held while anyone who would be in it hasn't been weighed.
   const notWeighed = entrants.filter((r) => r.weighInStatus !== "CLEARED");
   const held = !!registrations && notWeighed.length > 0;
@@ -312,7 +309,7 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
     try {
       await api<Draw>(`/tournaments/${tournament.id}/draws`, {
         body: {
-          ageGroup: category.ageGroup, gender: category.gender, weightCategory: category.weightCategory, onlyPaid, matNumber: mat, force,
+          ageGroup: category.ageGroup, gender: category.gender, weightCategory: category.weightCategory, matNumber: mat, force,
           ...(mode === "manual" ? { format: manualFormat, manual: manualValue } : { format, seedIds: seeds.filter(Boolean) }),
         },
       });
@@ -389,12 +386,6 @@ function GeneratePanel({ tournament, category, existing, onDone }: { tournament:
         </div>
       )}
 
-      {tournament.entryFee > 0 && (
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={onlyPaid} onChange={(e) => setOnlyPaid(e.target.checked)} className="h-4 w-4 accent-[#ff7400]" />
-          Leave out entries whose fee is still pending ({category.entrants - category.paid})
-        </label>
-      )}
 
       {held && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

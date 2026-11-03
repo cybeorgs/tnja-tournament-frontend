@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, FileSpreadsheet, IndianRupee, Mail, Pencil, Plus, Trash2, Upload, Users } from "lucide-react";
+import { Download, Eye, FileSpreadsheet, Pencil, Plus, Trash2, Upload, Users } from "lucide-react";
 import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
-import { collectPayment } from "@/lib/razorpay";
-import { categoryLabel, formatDateTime, rupees, titleCase } from "@/lib/format";
-import { lateEntryFee, registrationPhase, type EmailKind, type Registration, type TournamentDetail } from "@/lib/types";
+import { categoryLabel, formatDateTime } from "@/lib/format";
+import { registrationPhase, type Registration, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Modal, Spinner } from "@/components/ui";
 import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
 import { errorMessage, useToast } from "@/components/Toast";
@@ -18,7 +17,6 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
   const { data: registrations, loading, error, reload } = useApi<Registration[]>(`/tournaments/${tournament.id}/registrations`);
   const { filters, setFilters, active } = useFilters();
   const [editing, setEditing] = useState<Registration | null | "new">(null);
-  const [paying, setPaying] = useState<Registration | null>(null);
   const [removing, setRemoving] = useState<Registration | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -90,7 +88,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         <p className="text-sm font-bold text-slate-800">Entries</p>
         <div className="flex flex-wrap items-center gap-2">
         {all.length > 0 && (
-          <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel} title="Every entry with the student's details, category, weigh-in and payment">
+          <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel} title="Every entry with the student's details, category and weigh-in">
             Download Excel
           </Button>
         )}
@@ -115,14 +113,14 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
       )}
       {phase === "LATE" && (
         <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          Late registration until {formatDateTime(tournament.startDate)}. New entries are marked late and cost {tournament.entryFee > 0 ? rupees(lateEntryFee(tournament)) : "nothing"}.
+          Late registration until {formatDateTime(tournament.startDate)}. New entries are marked late.
         </p>
       )}
       {phase === "NOT_OPEN" && (
         <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration opens on {formatDateTime(tournament.registrationOpensAt)}. Change the dates from Overview → Edit.</p>
       )}
       {phase === "CLOSED" && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration is closed — the tournament has started. Payments for existing entries can still be recorded.</p>
+        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration is closed — the tournament has started.</p>
       )}
 
       {loading && !registrations ? (
@@ -141,8 +139,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                 <th className="px-4 py-2.5">Player</th>
                 <th className="px-4 py-2.5">Registered</th>
                 <th className="px-4 py-2.5">Category</th>
-                <th className="px-4 py-2.5">Fee</th>
-                <th className="px-4 py-2.5">Payment</th>
+                <th className="px-4 py-2.5">Weigh-in</th>
                 <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
@@ -162,24 +159,14 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                     {categoryLabel(r)}
                     <p className="text-xs text-slate-400">{r.weightKg} kg</p>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">{r.fee ? rupees(r.fee) : "Free"}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => setPaying(r)} className="text-left hover:opacity-80" title="Payment details">
-                      {r.paymentStatus === "PAID" && <Badge color="green">Paid {rupees(r.amountPaid)}</Badge>}
-                      {r.paymentStatus === "PENDING" && <Badge color="orange">Pending</Badge>}
-                      {r.paymentStatus === "WAIVED" && <Badge>{r.fee ? "Waived" : "Free"}</Badge>}
-                      {r.paymentStatus === "PAID" && (
-                        <span className="mt-1 block text-xs text-slate-500">
-                          {r.paymentMode === "RAZORPAY" ? "Online" : titleCase(r.paymentMode ?? "")}{r.paidAt ? ` · ${formatDateTime(r.paidAt)}` : ""}
-                          {r.razorpayPaymentId && <span className="block font-mono text-[11px] text-slate-400">{r.razorpayPaymentId}</span>}
-                        </span>
-                      )}
-                    </button>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    {r.weighInStatus === "CLEARED" ? <Badge color="green">Cleared{r.weighInKg ? ` · ${r.weighInKg} kg` : ""}</Badge>
+                      : r.weighInStatus === "DISQUALIFIED" ? <Badge color="red">Disqualified</Badge>
+                      : <Badge>Not weighed</Badge>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       <IconButton label="Edit category" onClick={() => setEditing(r)}><Pencil size={15} /></IconButton>
-                      <IconButton label="Payment" onClick={() => setPaying(r)}><IndianRupee size={15} /></IconButton>
                       <IconButton label="View certificate" onClick={() => certificate(r, "view")}><Eye size={15} /></IconButton>
                       <IconButton label="Download certificate" onClick={() => certificate(r, "download")}><Download size={15} /></IconButton>
                       <IconButton label="Remove entry" danger onClick={() => setRemoving(r)}><Trash2 size={15} /></IconButton>
@@ -202,15 +189,6 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         />
       )}
 
-      {paying && (
-        <PaymentModal
-          tournament={tournament}
-          registration={paying}
-          onClose={() => setPaying(null)}
-          onSaved={() => { setPaying(null); refresh(); }}
-        />
-      )}
-
       <Modal
         open={!!removing}
         onClose={() => setRemoving(null)}
@@ -224,7 +202,6 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
       >
         <p className="text-sm text-slate-600">
           Remove <strong>{removing?.student.fullName}</strong> from this tournament? The student stays in your master list.
-          {removing?.paymentStatus === "PAID" && " Their fee is recorded as paid — refund it separately if needed."}
         </p>
       </Modal>
     </Card>
@@ -241,103 +218,5 @@ export function IconButton({ label, onClick, children, danger }: { label: string
     >
       {children}
     </button>
-  );
-}
-
-function PaymentModal({ tournament, registration: r, onClose, onSaved }: { tournament: TournamentDetail; registration: Registration; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const [busy, setBusy] = useState<string | null>(null);
-
-  async function manual(status: "PENDING" | "PAID" | "WAIVED", mode?: "CASH" | "UPI") {
-    setBusy(status + (mode ?? ""));
-    try {
-      await api(`/tournaments/${tournament.id}/registrations/${r.id}/payment`, { method: "PATCH", body: { status, mode } });
-      toast("Payment updated.");
-      onSaved();
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function email(kind: EmailKind) {
-    setBusy(kind);
-    try {
-      const res = await api<{ sent: number; status: string | null; error: string }>(`/tournaments/${tournament.id}/emails`, { body: { kind, studentId: r.studentId } });
-      const message =
-        res.status === "FAILED" ? `Email failed: ${res.error}`
-        : res.status === "NOT_CONFIGURED" ? "Email isn't set up (SMTP), so it was only written to the server log."
-        : res.sent ? "Email sent." : "Nothing to send.";
-      toast(message, res.status !== "FAILED");
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function online() {
-    setBusy("ONLINE");
-    try {
-      await collectPayment(tournament.id, r, tournament.title);
-      toast("Payment received.");
-      onSaved();
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={`Entry fee — ${r.student.fullName}`}>
-      <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 p-4">
-        <div>
-          <p className="text-xs text-slate-500">{r.isLate ? "Late entry fee" : "Entry fee"}</p>
-          <p className="text-xl font-bold text-slate-900">{rupees(r.paymentStatus === "PAID" ? r.amountPaid : r.fee)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-500">Status</p>
-          <p className="font-semibold text-slate-800">{r.paymentStatus === "PAID" ? `Paid (${r.paymentMode === "RAZORPAY" ? "online" : r.paymentMode?.toLowerCase()})` : r.paymentStatus === "WAIVED" ? "Waived" : "Pending"}</p>
-        </div>
-      </div>
-
-      {r.paymentStatus === "PAID" && (
-        <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-100 p-4 text-sm">
-          <dt className="text-slate-500">Amount paid</dt><dd className="text-right font-semibold text-slate-900">{rupees(r.amountPaid)}</dd>
-          <dt className="text-slate-500">Paid on</dt><dd className="text-right text-slate-800">{formatDateTime(r.paidAt)}</dd>
-          {r.razorpayPaymentId && (<><dt className="text-slate-500">Transaction ID</dt><dd className="break-all text-right font-mono text-xs text-slate-800">{r.razorpayPaymentId}</dd></>)}
-        </dl>
-      )}
-
-      {r.paymentStatus !== "PAID" && r.fee > 0 && (
-        <>
-          <Button className="w-full" loading={busy === "ONLINE"} onClick={online}>Collect online with Razorpay</Button>
-          <p className="mb-4 mt-1.5 text-center text-xs text-slate-400">Pay by UPI, card or net banking on this device.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" loading={busy === "PAIDCASH"} onClick={() => manual("PAID", "CASH")}>Paid in cash</Button>
-            <Button variant="secondary" loading={busy === "PAIDUPI"} onClick={() => manual("PAID", "UPI")}>Paid by UPI</Button>
-          </div>
-        </>
-      )}
-      <div className="mt-2 flex flex-wrap justify-center gap-2">
-        {r.paymentStatus !== "WAIVED" && <Button variant="ghost" size="sm" loading={busy === "WAIVED"} onClick={() => manual("WAIVED")}>Waive fee</Button>}
-        {r.paymentStatus !== "PENDING" && r.fee > 0 && <Button variant="ghost" size="sm" loading={busy === "PENDING"} onClick={() => manual("PENDING")}>Mark as unpaid</Button>}
-      </div>
-
-      <div className="mt-5 border-t border-slate-100 pt-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Email {r.student.email}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" icon={<Mail size={14} />} loading={busy === "CONFIRMATION"} onClick={() => email("CONFIRMATION")}>Registration confirmation</Button>
-          {r.paymentStatus === "PENDING" && r.fee > 0 && !r.isLate && (
-            <Button variant="secondary" size="sm" icon={<Mail size={14} />} loading={busy === "REMINDER"} onClick={() => email("REMINDER")}>Deadline reminder</Button>
-          )}
-          {r.paymentStatus === "PAID" && r.paymentMode === "RAZORPAY" && (
-            <Button variant="secondary" size="sm" icon={<Mail size={14} />} loading={busy === "PAYMENT"} onClick={() => email("PAYMENT")}>Payment receipt</Button>
-          )}
-        </div>
-      </div>
-    </Modal>
   );
 }

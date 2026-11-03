@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, XCircle } from "lucide-react";
 import { downloadFile, runImportJob, type ImportProgress } from "@/lib/api";
-import { rupees } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
 import { Button, Modal, cx } from "@/components/ui";
 import { ImportProgressBar, ProblemList } from "@/components/ImportStudentsModal";
@@ -15,11 +14,11 @@ interface Preview {
   valid: number;
   invalid: number;
   entries: number;
-  fee: { perEntry: number; isLate: boolean };
+  isLate: boolean;
   missingColumns: string[];
   unknownColumns: string[];
 }
-interface Imported { students: number; entries: number; failed: RowResult[]; emailsQueued: number; emailsSkipped?: number }
+interface Imported { students: number; entries: number; failed: RowResult[] }
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -33,7 +32,6 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<Imported | null>(null);
-  const [sendEmails, setSendEmails] = useState(true);
   const [busy, setBusy] = useState<"" | "check" | "import" | "template">("");
   const [error, setError] = useState("");
   const [showReady, setShowReady] = useState(false);
@@ -72,7 +70,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
     if (!file) return;
     setBusy("import");
     try {
-      const r = await runImportJob<Imported>(`${base}${sendEmails ? "?sendEmails=1" : ""}`, `${base}/jobs`, file, setProgress);
+      const r = await runImportJob<Imported>(base, `${base}/jobs`, file, setProgress);
       setResult(r);
       if (r.entries) onImported();
     } catch (err) {
@@ -97,7 +95,6 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
 
   const problems = preview?.rows.filter((r) => r.errors.length) ?? [];
   const ready = preview?.rows.filter((r) => !r.errors.length) ?? [];
-  const total = preview ? preview.entries * preview.fee.perEntry : 0;
 
   const footer = result ? (
     <Button onClick={close}>Done</Button>
@@ -121,9 +118,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
             <div className="text-sm text-emerald-900">
               <p className="font-bold">{result.entries} entr{result.entries === 1 ? "y" : "ies"} added for {result.students} student{result.students === 1 ? "" : "s"}</p>
               <p className="mt-0.5">
-                {result.emailsQueued > 0 ? `Registration confirmation emails are being sent to ${result.emailsQueued} student${result.emailsQueued === 1 ? "" : "s"}.` : "No emails were sent."}
-                {!!result.emailsSkipped && ` ${result.emailsSkipped} test address${result.emailsSkipped === 1 ? " was" : "es were"} skipped.`}
-                {" "}Each entry still needs its weigh-in before the draw.
+                Each entry still needs its weigh-in before the draw.
               </p>
             </div>
           </div>
@@ -179,12 +174,10 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
                   <p className={cx("text-2xl font-bold", preview.invalid ? "text-red-600" : "text-slate-400")}>{preview.invalid}</p>
                   <p className={cx("text-xs font-medium", preview.invalid ? "text-red-700" : "text-slate-500")}>with problems — will be skipped</p>
                 </div>
-                {preview.fee.perEntry > 0 && (
-                  <div className="col-span-2 rounded-xl bg-slate-50 p-3 sm:col-span-1">
-                    <p className="text-2xl font-bold text-slate-800">{rupees(total)}</p>
-                    <p className="text-xs font-medium text-slate-500">{preview.fee.isLate ? "late fee" : "entry fee"} {rupees(preview.fee.perEntry)} × {preview.entries}</p>
-                  </div>
-                )}
+                <div className="col-span-2 rounded-xl bg-slate-50 p-3 sm:col-span-1">
+                  <p className="text-2xl font-bold text-slate-800">Free</p>
+                  <p className="text-xs font-medium text-slate-500">{preview.isLate ? "Late registration — entries are marked late" : "Regular registration"}</p>
+                </div>
               </div>
               {preview.missingColumns.length > 0 && (
                 <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -210,12 +203,6 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
                     </ul>
                   )}
                 </div>
-              )}
-              {preview.valid > 0 && (
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={sendEmails} onChange={(e) => setSendEmails(e.target.checked)} className="h-4 w-4 accent-[#ff7400]" />
-                  Send each student the registration confirmation email
-                </label>
               )}
             </div>
           )}

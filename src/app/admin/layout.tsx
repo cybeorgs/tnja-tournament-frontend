@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Menu, Settings as SettingsIcon, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, Settings as SettingsIcon, Trophy, Users, X } from "lucide-react";
 import { api, auth } from "@/lib/api";
 import { useSettings } from "@/lib/hooks";
 import { Brand } from "@/components/Brand";
@@ -13,7 +13,6 @@ const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },
   { href: "/admin/students", label: "Students", icon: Users },
-  { href: "/admin/referees", label: "Referees", icon: ShieldCheck },
   { href: "/admin/settings", label: "Settings", icon: SettingsIcon },
 ];
 

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Flag, ShieldCheck, Trophy } from "lucide-react";
+import { ArrowRight, ChevronRight, ShieldCheck, Trophy } from "lucide-react";
 import { AuthLayout } from "@/components/AuthLayout";
 
 export default function StartPage() {
@@ -30,13 +30,9 @@ export default function StartPage() {
         <Link href="/student/login" className="font-semibold text-brand hover:underline">Student login</Link>
       </p>
 
-      {/* Secondary: officials and admin */}
+      {/* Secondary: admin */}
       <div className="mt-10 border-t border-slate-200 pt-6">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Officials</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Choice href="/referee" icon={<Flag size={18} />} title="Referee registration" />
-          <Choice href="/login" icon={<ShieldCheck size={18} />} title="Admin login" />
-        </div>
+        <Choice href="/login" icon={<ShieldCheck size={18} />} title="Admin login" />
       </div>
     </AuthLayout>
   );

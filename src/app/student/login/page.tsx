@@ -29,7 +29,7 @@ export default function StudentLoginPage() {
     setBusy(true);
     try {
       if (mode === "login") {
-        const { token } = await studentApi<{ token: string }>("/student-auth/login", { body: { email, password } });
+        const { token } = await studentApi<{ token: string }>("/student-auth/login", { body: { login: email, password } });
         studentAuth.setToken(token);
         router.replace("/student");
         return;
@@ -49,7 +49,7 @@ export default function StudentLoginPage() {
       <BackLink href="/" />
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">{mode === "login" ? "Student login" : "Reset your password"}</h1>
       <p className="mt-2 text-sm text-slate-500">
-        {mode === "login" ? "Use the email you registered with as your username." : "We'll email you a link to choose a new password."}
+        {mode === "login" ? "Use the username and password from your registration email. Your username is your email — your student ID or temporary ID also works." : "Enter the email you registered with. We'll email you a link to choose a new password."}
       </p>
 
       {notice && (
@@ -60,9 +60,19 @@ export default function StudentLoginPage() {
 
       <form onSubmit={submit} className="mt-8 space-y-5">
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+          <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">{mode === "login" ? "Username" : "Email"}</label>
           <IconInput icon={<Mail size={16} />}>
-            <input id="email" type="email" autoFocus autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} required className={inputClass} />
+            <input
+              id="email"
+              type={mode === "login" ? "text" : "email"}
+              autoFocus
+              autoComplete="username"
+              placeholder={mode === "login" ? "Email, student ID or temporary ID" : "name@example.com"}
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim())}
+              required
+              className={inputClass}
+            />
           </IconInput>
         </div>
 

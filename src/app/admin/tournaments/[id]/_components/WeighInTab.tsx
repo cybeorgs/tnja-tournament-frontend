@@ -191,7 +191,6 @@ function WeighInRow({ tournamentId, registration: r, locked, onSaved }: { tourna
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 font-semibold text-slate-800">
           {r.student.fullName}
-          {r.paymentStatus === "PENDING" && <Badge color="orange">Unpaid</Badge>}
         </p>
         <p className="text-xs text-slate-500">{[r.student.studentNo, r.student.club || r.student.district].filter(Boolean).join(" · ")}</p>
         <p className="mt-0.5 text-xs text-slate-600">
