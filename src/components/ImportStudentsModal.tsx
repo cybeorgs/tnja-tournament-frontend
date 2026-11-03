@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, XCircle } from "lucide-react";
-import { downloadFile, uploadFile } from "@/lib/api";
+import { downloadFile, runImportJob, type ImportProgress } from "@/lib/api";
 import { Button, Modal, cx } from "./ui";
 import { errorMessage, useToast } from "./Toast";
 
 interface RowResult { row: number; fullName: string; email: string; district: string; errors: string[] }
 interface Preview { rows: RowResult[]; valid: number; invalid: number; missingColumns: string[]; unknownColumns: string[] }
-interface Imported { created: number; students: { row: number; fullName: string; studentNo: string | null }[]; failed: RowResult[]; emailsQueued: number }
+interface Imported { created: number; students: { row: number; fullName: string; studentNo: string | null }[]; failed: RowResult[]; emailsQueued: number; emailsSkipped?: number }
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -27,6 +27,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
   const [busy, setBusy] = useState<"" | "check" | "import" | "template">("");
   const [error, setError] = useState("");
   const [showReady, setShowReady] = useState(false);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
 
   const reset = () => {
     setFile(null);
@@ -51,11 +52,12 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
     if (!/\.(xlsx|csv)$/i.test(f.name)) return setError(/\.xls$/i.test(f.name) ? "Old .xls files can't be read — open it in Excel and save as .xlsx." : "Choose an .xlsx or .csv file.");
     setBusy("check");
     try {
-      setPreview(await uploadFile<Preview>("/students/import?dryRun=1", f));
+      setPreview(await runImportJob<Preview>("/students/import?dryRun=1", "/students/import/jobs", f, setProgress));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy("");
+      setProgress(null);
     }
   }
 
@@ -63,13 +65,14 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
     if (!file) return;
     setBusy("import");
     try {
-      const r = await uploadFile<Imported>(`/students/import${sendEmails ? "?sendEmails=1" : ""}`, file);
+      const r = await runImportJob<Imported>(`/students/import${sendEmails ? "?sendEmails=1" : ""}`, "/students/import/jobs", file, setProgress);
       setResult(r);
       if (r.created) onImported();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy("");
+      setProgress(null);
     }
   }
 
@@ -111,6 +114,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
               <p className="mt-0.5">
                 Each has a permanent student ID.
                 {result.emailsQueued > 0 ? ` Login emails with a set-password link are being sent to ${result.emailsQueued} address${result.emailsQueued === 1 ? "" : "es"}.` : " No emails were sent — students can use “Forgot password” on the student login to get their link."}
+                {!!result.emailsSkipped && ` ${result.emailsSkipped} test address${result.emailsSkipped === 1 ? " was" : "es were"} skipped (e.g. @example.invalid).`}
               </p>
             </div>
           </div>
@@ -148,7 +152,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
             <input ref={input} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void check(f); }} />
           </div>
 
-          {busy === "check" && <p className="text-sm text-slate-500">Checking every row… (pincodes are looked up, so a large file takes a moment)</p>}
+          {(busy === "check" || busy === "import") && <ImportProgressBar progress={progress} />}
           {error && <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"><XCircle size={16} className="mt-0.5 shrink-0" /> {error}</p>}
 
           {preview && (
@@ -222,6 +226,28 @@ export function ProblemList({ title, rows, hint }: { title: string; rows: { row:
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Progress of a background import: checking the rows, then saving them. */
+export function ImportProgressBar({ progress }: { progress: ImportProgress | null }) {
+  const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+  const label = !progress
+    ? "Uploading…"
+    : progress.phase === "CHECKING"
+      ? `Checking rows… ${progress.done} of ${progress.total}`
+      : `Saving… ${progress.done} of ${progress.total}`;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-600">
+        <span>{label}</span>
+        {progress && <span>{pct}%</span>}
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={cx("h-full rounded-full bg-brand transition-all", !progress && "w-1/3 animate-pulse")} style={progress ? { width: `${pct}%` } : undefined} />
+      </div>
+      <p className="mt-1.5 text-[11px] text-slate-400">You can keep this window open — large files take a few minutes. It keeps running on the server if the connection drops.</p>
     </div>
   );
 }

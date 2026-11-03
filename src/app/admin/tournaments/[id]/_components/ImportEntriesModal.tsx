@@ -2,11 +2,11 @@
 
 import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, XCircle } from "lucide-react";
-import { downloadFile, uploadFile } from "@/lib/api";
+import { downloadFile, runImportJob, type ImportProgress } from "@/lib/api";
 import { rupees } from "@/lib/format";
 import type { TournamentDetail } from "@/lib/types";
 import { Button, Modal, cx } from "@/components/ui";
-import { ProblemList } from "@/components/ImportStudentsModal";
+import { ImportProgressBar, ProblemList } from "@/components/ImportStudentsModal";
 import { errorMessage, useToast } from "@/components/Toast";
 
 interface RowResult { row: number; fullName: string; studentNo: string; entries: string[]; errors: string[] }
@@ -19,7 +19,7 @@ interface Preview {
   missingColumns: string[];
   unknownColumns: string[];
 }
-interface Imported { students: number; entries: number; failed: RowResult[]; emailsQueued: number }
+interface Imported { students: number; entries: number; failed: RowResult[]; emailsQueued: number; emailsSkipped?: number }
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -37,6 +37,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
   const [busy, setBusy] = useState<"" | "check" | "import" | "template">("");
   const [error, setError] = useState("");
   const [showReady, setShowReady] = useState(false);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
   const base = `/tournaments/${tournament.id}/registrations/import`;
 
   const close = () => {
@@ -58,11 +59,12 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
     if (!/\.(xlsx|csv)$/i.test(f.name)) return setError(/\.xls$/i.test(f.name) ? "Old .xls files can't be read — open it in Excel and save as .xlsx." : "Choose an .xlsx or .csv file.");
     setBusy("check");
     try {
-      setPreview(await uploadFile<Preview>(`${base}?dryRun=1`, f));
+      setPreview(await runImportJob<Preview>(`${base}?dryRun=1`, `${base}/jobs`, f, setProgress));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy("");
+      setProgress(null);
     }
   }
 
@@ -70,13 +72,14 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
     if (!file) return;
     setBusy("import");
     try {
-      const r = await uploadFile<Imported>(`${base}${sendEmails ? "?sendEmails=1" : ""}`, file);
+      const r = await runImportJob<Imported>(`${base}${sendEmails ? "?sendEmails=1" : ""}`, `${base}/jobs`, file, setProgress);
       setResult(r);
       if (r.entries) onImported();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy("");
+      setProgress(null);
     }
   }
 
@@ -88,6 +91,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
       toast(errorMessage(err), false);
     } finally {
       setBusy("");
+      setProgress(null);
     }
   }
 
@@ -118,6 +122,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
               <p className="font-bold">{result.entries} entr{result.entries === 1 ? "y" : "ies"} added for {result.students} student{result.students === 1 ? "" : "s"}</p>
               <p className="mt-0.5">
                 {result.emailsQueued > 0 ? `Registration confirmation emails are being sent to ${result.emailsQueued} student${result.emailsQueued === 1 ? "" : "s"}.` : "No emails were sent."}
+                {!!result.emailsSkipped && ` ${result.emailsSkipped} test address${result.emailsSkipped === 1 ? " was" : "es were"} skipped.`}
                 {" "}Each entry still needs its weigh-in before the draw.
               </p>
             </div>
@@ -159,7 +164,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
             <input ref={input} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void check(f); }} />
           </div>
 
-          {busy === "check" && <p className="text-sm text-slate-500">Checking every row…</p>}
+          {(busy === "check" || busy === "import") && <ImportProgressBar progress={progress} />}
           {error && <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"><XCircle size={16} className="mt-0.5 shrink-0" /> {error}</p>}
 
           {preview && (

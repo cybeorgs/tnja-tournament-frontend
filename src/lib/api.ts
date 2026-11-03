@@ -61,6 +61,32 @@ export async function uploadFile<T>(path: string, file: File): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface ImportProgress { phase: "CHECKING" | "SAVING"; done: number; total: number }
+
+/**
+ * Run a background import: upload the file to `path` (which replies with a job id), then poll
+ * `${jobsPath}/:jobId` until it finishes. Keeps polling through brief network errors.
+ */
+export async function runImportJob<T>(path: string, jobsPath: string, file: File, onProgress: (p: ImportProgress) => void): Promise<T> {
+  const { jobId } = await uploadFile<{ jobId: string }>(path, file);
+  let failures = 0;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1000));
+    let job: ImportProgress & { status: "RUNNING" | "DONE" | "FAILED"; result: T | null; error: string | null };
+    try {
+      job = await api(`${jobsPath}/${jobId}`);
+      failures = 0;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) throw err;
+      if (++failures >= 10) throw err;
+      continue;
+    }
+    if (job.status === "DONE") return job.result as T;
+    if (job.status === "FAILED") throw new ApiError(500, job.error ?? "The import failed.");
+    onProgress({ phase: job.phase, done: job.done, total: job.total });
+  }
+}
+
 /** Download a file from an authenticated endpoint (e.g. an Excel export). */
 export async function downloadFile(path: string, fallbackName: string) {
   const res = await fetch(`${API_BASE}${path}`, { headers: headers(false) });
