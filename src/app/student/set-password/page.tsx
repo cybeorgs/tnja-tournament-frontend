@@ -4,7 +4,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
-import { studentApi, studentAuth } from "@/lib/studentAuth";
+import { PASSWORD_HINT, passwordProblem, studentApi, studentAuth } from "@/lib/studentAuth";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Button, Spinner, cx } from "@/components/ui";
 import { errorMessage } from "@/components/Toast";
@@ -31,7 +31,8 @@ function SetPasswordForm() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    const problem = passwordProblem(password);
+    if (problem) return setError(problem);
     if (password !== confirm) return setError("The two passwords don't match.");
     setError("");
     setBusy(true);
@@ -61,7 +62,7 @@ function SetPasswordForm() {
       <p className="mt-2 text-sm text-slate-500">Choose a password for your account. You&apos;ll use it with your email to log in.</p>
 
       <form onSubmit={submit} className="mt-8 space-y-5">
-        <PasswordField id="password" label="New password" hint="At least 8 characters" value={password} onChange={setPassword} show={show} onToggle={() => setShow((s) => !s)} autoFocus />
+        <PasswordField id="password" label="New password" hint={PASSWORD_HINT} value={password} onChange={setPassword} show={show} onToggle={() => setShow((s) => !s)} autoFocus />
         <PasswordField id="confirm" label="Confirm password" value={confirm} onChange={setConfirm} show={show} />
 
         {error && (

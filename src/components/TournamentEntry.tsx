@@ -2,13 +2,14 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Check, CheckCircle2, Trophy } from "lucide-react";
-import { api } from "@/lib/api";
+import { Check, CheckCircle2, Download, LogIn, Ticket, Trophy } from "lucide-react";
+import { API_BASE, api } from "@/lib/api";
 import { useMeta, useNow } from "@/lib/hooks";
 import { ownAgeGroup, weightClassFor } from "@/lib/categories";
 import { rupees } from "@/lib/format";
 import { registrationPhase, type Gender, type PaymentStatus, type StudentGender, type Tournament } from "@/lib/types";
-import { PaymentBadge } from "./Payment";
+import { FeeTotal, PaymentBadge } from "./Payment";
+import { PayNow } from "./PayNow";
 import { Button, Field, Input, Select, Spinner, cx } from "./ui";
 import { errorMessage } from "./Toast";
 
@@ -17,9 +18,13 @@ interface CheckResult {
   student: { studentNo: string; fullName: string; gender: StudentGender };
   genderAllowed: boolean;
   ageGroups: string[];
-  /** Charged per event (age group); 0 = free */
+  /** Fee for the player's first category; 0 = free */
   entryFee: number;
+  /** Fee for each further category */
+  additionalEntryFee: number;
   entries: Entry[];
+  /** Pays this student's unpaid entries without logging in */
+  payToken: string;
 }
 
 /** "A", "A and B", "A, B and C" */
@@ -161,27 +166,123 @@ export function EventsPicker({ eligible, age, gender, lockGender, value, onChang
   );
 }
 
-/** "You're in" summary of the events entered. */
-export function EntryDone({ name, studentNo, entries, tournament, note }: { name: string; studentNo: string; entries: Entry[]; tournament: Tournament; note?: React.ReactNode }) {
+/** Save the hall ticket using the pay token (the player isn't logged in on this screen). */
+async function downloadHallTicket(payToken: string, studentNo: string) {
+  const res = await fetch(`${API_BASE}/public/payments/hall-ticket`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payToken }) });
+  if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error || "Couldn't download the hall ticket.");
+  const url = URL.createObjectURL(new Blob([await res.blob()], { type: "application/pdf" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Hall_ticket_${studentNo}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/**
+ * "You're in": the events entered, then paying the entry fee right here (or later from the student
+ * login), then the hall ticket.
+ */
+export function EntryDone({ name, studentNo, entries: initial, tournament, note, payToken }: {
+  name: string; studentNo: string; entries: Entry[]; tournament: Tournament; note?: React.ReactNode;
+  /** From the registration reply: lets this screen take the payment without logging in */
+  payToken?: string | null;
+}) {
+  const [entries, setEntries] = useState(initial);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+  const due = entries.filter((e) => e.paymentStatus === "PENDING").reduce((n, e) => n + e.fee, 0);
+  const paidNow = !due && entries.some((e) => e.paymentStatus === "PAID");
+  const total = entries.reduce((n, e) => n + (e.paymentStatus === "WAIVED" ? 0 : e.fee), 0);
+
   return (
-    <div className="py-4 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
-        <CheckCircle2 size={36} className="text-emerald-500" />
+    <div className="mx-auto max-w-md py-2">
+      <div className="text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+          <CheckCircle2 size={36} className="text-emerald-500" />
+        </div>
+        <p className="mt-4 text-lg font-bold text-slate-900">You&apos;re in, {name}!</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Registered in {entries.length} event{entries.length === 1 ? "" : "s"} · Student ID <span className="font-mono font-semibold text-brand">{studentNo}</span>
+        </p>
       </div>
-      <p className="mt-4 text-lg font-bold text-slate-900">You&apos;re in, {name}!</p>
-      <p className="mt-1 text-sm text-slate-500">Registered in {entries.length} event{entries.length === 1 ? "" : "s"}.</p>
-      <ul className="mx-auto mt-3 max-w-xs space-y-1 text-sm text-slate-600">
-        {entries.map((e) => (
-          <li key={e.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
-            <span>{e.ageGroup} · {e.weightCategory}</span>
-            <PaymentBadge status={e.paymentStatus} fee={e.fee} />
-          </li>
-        ))}
-      </ul>
-      <PaymentDue entries={entries} />
-      <p className="mt-4 text-xs text-slate-500">Student ID <span className="font-mono font-semibold text-brand">{studentNo}</span> · bring it to the weigh-in</p>
-      {note && <div className="mt-3 text-xs text-slate-500">{note}</div>}
-      <Link href={`/t/${tournament.slug}`} className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">View tournament</Link>
+
+      <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+        <ul className="divide-y divide-slate-100 text-sm">
+          {entries.map((e) => (
+            <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <span className="text-slate-700">{e.ageGroup} · {e.weightCategory}</span>
+              <PaymentBadge status={e.paymentStatus} fee={e.fee} />
+            </li>
+          ))}
+        </ul>
+        {total > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+            <span className="font-medium text-slate-600">{due ? "Total to pay" : "Total paid"}</span>
+            <span className="font-bold text-slate-900">{rupees(due || total)}</span>
+          </div>
+        )}
+      </div>
+
+      {due > 0 && (
+        <div className="mt-5 rounded-2xl border border-orange-200 bg-brand-soft/60 p-4">
+          <p className="text-sm font-bold text-slate-900">Pay the entry fee to get your hall ticket</p>
+          <p className="mb-3 mt-0.5 text-xs text-slate-600">Your hall ticket is emailed as soon as the payment goes through.</p>
+          {payToken ? (
+            <PayNow
+              amount={due}
+              createOrder={() => api("/public/payments/order", { body: { payToken } })}
+              verify={async (result) => setEntries((await api<{ entries: Entry[] }>("/public/payments/verify", { body: { payToken, ...result } })).entries)}
+              onPaid={() => setEntries((list) => list.map((e) => (e.paymentStatus === "PENDING" ? { ...e, paymentStatus: "PAID" } : e)))}
+            />
+          ) : (
+            <Link href="/student/login" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-semibold text-white hover:bg-brand-dark">
+              <LogIn size={16} /> Log in to pay
+            </Link>
+          )}
+          <p className="mt-3 border-t border-orange-200/70 pt-3 text-xs text-slate-600">
+            Prefer to pay later? <Link href="/student/login" className="font-semibold text-brand hover:underline">Log in</Link> with the username and password we emailed you and pay from your account before the tournament starts.
+          </p>
+        </div>
+      )}
+
+      {paidNow && (
+        <div className="animate-pop-in mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-center">
+          <p className="flex items-center justify-center gap-2 text-sm font-bold text-emerald-800"><Ticket size={16} /> Payment received — your hall ticket is ready</p>
+          <p className="mt-0.5 text-xs text-emerald-700">We&apos;ve emailed it to you. Print it on A4 and bring it to the weigh-in.</p>
+          {payToken && (
+            <Button
+              className="mt-3 w-full"
+              icon={<Download size={16} />}
+              loading={downloading}
+              onClick={async () => {
+                setDownloadError("");
+                setDownloading(true);
+                try {
+                  await downloadHallTicket(payToken, studentNo);
+                } catch (err) {
+                  setDownloadError(errorMessage(err));
+                } finally {
+                  setDownloading(false);
+                }
+              }}
+            >
+              Download hall ticket
+            </Button>
+          )}
+          {downloadError && <p className="mt-2 text-xs font-medium text-red-600">{downloadError}</p>}
+        </div>
+      )}
+
+      {!due && !paidNow && (
+        <p className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-800">Free entry — your hall ticket has been emailed to you.</p>
+      )}
+
+      {note && <div className="mt-4 text-center text-xs text-slate-500">{note}</div>}
+      <div className="mt-4 text-center">
+        <Link href={`/t/${tournament.slug}`} className="text-sm font-semibold text-brand hover:underline">View tournament</Link>
+      </div>
     </div>
   );
 }
@@ -202,6 +303,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Entry[] | null>(null);
+  const [payToken, setPayToken] = useState<string | null>(null);
   // When registration closes while the page is open, ask again.
   const phase = registrationPhase(tournament, useNow(15_000));
 
@@ -211,6 +313,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
       .then((r) => {
         if (cancelled) return;
         setCheck(r);
+        setPayToken(r.payToken);
         setLoadError("");
         if (r.entries[0]) setEvents((v) => (v.weight ? v : { ...v, weight: String(r.entries[0]!.weightKg) }));
         if (r.entries.length && r.entries.length >= r.ageGroups.length) setDone(r.entries);
@@ -221,7 +324,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
 
   if (loadError) return <ErrorText>{loadError}</ErrorText>;
   if (!check) return <Spinner />;
-  if (done) return <EntryDone name={check.student.fullName} studentNo={check.student.studentNo} entries={done} tournament={tournament} />;
+  if (done) return <EntryDone name={check.student.fullName} studentNo={check.student.studentNo} entries={done} tournament={tournament} payToken={payToken} />;
 
   const isOther = check.student.gender === "OTHER";
   const entered = new Map(check.entries.map((e) => [e.ageGroup, e.weightCategory]));
@@ -235,9 +338,10 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
     if (problem) return;
     setBusy(true);
     try {
-      const { entries } = await api<{ entries: Entry[] }>(base, {
+      const { entries, payToken: token } = await api<{ entries: Entry[]; payToken: string }>(base, {
         body: { studentNo, dob, ageGroups: fresh, weightKg: parseFloat(events.weight), competeAs: isOther ? lockGender ?? events.competeAs : undefined },
       });
+      setPayToken(token);
       setDone(entries);
     } catch (err) {
       setError(errorMessage(err));
@@ -260,12 +364,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         </div>
       </div>
 
-      {check.entryFee > 0 && (
-        <p className="rounded-xl border border-orange-200 bg-brand-soft px-4 py-3 text-sm text-slate-700">
-          Entry fee: <span className="font-semibold text-slate-900">{rupees(check.entryFee)} per event</span>
-          {fresh.length > 0 && <> · total <span className="font-semibold text-slate-900">{rupees(check.entryFee * fresh.length)}</span></>}
-        </p>
-      )}
+      <FeeTotal fees={check} count={fresh.length} alreadyEntered={check.entries.length} />
 
       {!check.genderAllowed ? (
         <ErrorText>This tournament is for {tournament.gender === "MALE" ? "boys" : "girls"} only.</ErrorText>
@@ -283,18 +382,6 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         </>
       )}
     </form>
-  );
-}
-
-/** Amount still to pay for these entries. The online payment button is added with the payment step. */
-export function PaymentDue({ entries }: { entries: Entry[] }) {
-  const due = entries.filter((e) => e.paymentStatus === "PENDING").reduce((n, e) => n + e.fee, 0);
-  if (!due) return null;
-  return (
-    <div className="mx-auto mt-4 max-w-xs rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
-      <p className="font-semibold">Entry fee due: {rupees(due)}</p>
-      <p className="mt-0.5 text-xs text-amber-800">Online payment will be available here soon. Your entries stay unpaid until then.</p>
-    </div>
   );
 }
 

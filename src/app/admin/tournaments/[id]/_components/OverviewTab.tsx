@@ -138,8 +138,8 @@ function TournamentDetails({ tournament: t, onEditDates }: { tournament: Tournam
   const now = useNow();
   const phase = registrationPhase(t, now);
   const status: Record<RegistrationPhase, string> = {
-    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)}. ${feeLabel(t.entryFee)}.`,
-    OPEN: `${feeLabel(t.entryFee)} until ${formatDateTime(t.registrationClosesAt)}. No late entries after that.`,
+    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)}. ${feeLabel(t)}.`,
+    OPEN: `${feeLabel(t)} until ${formatDateTime(t.registrationClosesAt)}. No late entries after that.`,
     CLOSED: "No new entries.",
   };
 
@@ -164,7 +164,7 @@ function TournamentDetails({ tournament: t, onEditDates }: { tournament: Tournam
         <Detail label="Dates">{formatDateRange(t.startDate, t.endDate)}</Detail>
         <Detail label="Registration opens">{formatDateTime(t.registrationOpensAt)}</Detail>
         <Detail label="Registration closes">{formatDateTime(t.registrationClosesAt)}</Detail>
-        <Detail label="Entry fee">{feeLabel(t.entryFee)}</Detail>
+        <Detail label="Entry fee">{feeLabel(t)}</Detail>
         <Detail label="Level">{titleCase(t.level)}</Detail>
         <Detail label="Open to">{GENDER_LABEL[t.gender]}</Detail>
         <Detail label="Age groups" wide>

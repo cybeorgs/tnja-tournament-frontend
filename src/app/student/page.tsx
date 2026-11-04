@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Ticket, Trophy, XCircle } from "lucide-react";
-import { studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
-import { formatDate, formatDateRange, titleCase } from "@/lib/format";
+import { PASSWORD_HINT, passwordProblem, studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
+import { formatDate, formatDateRange, rupees, titleCase } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
+import { PayNow } from "@/components/PayNow";
 import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { TournamentEntry } from "@/components/TournamentEntry";
@@ -68,7 +69,7 @@ export default function StudentHomePage() {
           <Card><EmptyState title="No students on this account">Register from the tournament page first.</EmptyState></Card>
         ) : (
           <div className="space-y-4">
-            {me.students.map((s) => <StudentCard key={s.id} student={s} onEnter={() => setEntering(s)} />)}
+            {me.students.map((s) => <StudentCard key={s.id} student={s} onEnter={() => setEntering(s)} onChanged={load} />)}
           </div>
         )}
 
@@ -81,7 +82,7 @@ export default function StudentHomePage() {
   );
 }
 
-function StudentCard({ student: s, onEnter }: { student: MyStudent; onEnter: () => void }) {
+function StudentCard({ student: s, onEnter, onChanged }: { student: MyStudent; onEnter: () => void; onChanged: () => void }) {
   const [showDetails, setShowDetails] = useState(false);
   // Entries grouped by tournament.
   const byTournament = [...new Map(s.registrations.map((r) => [r.tournament.id, r.tournament])).values()].map((t) => ({
@@ -118,7 +119,7 @@ function StudentCard({ student: s, onEnter }: { student: MyStudent; onEnter: () 
       {byTournament.length > 0 && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {byTournament.map(({ tournament, entries }) => (
-            <TournamentEntries key={tournament.id} student={s} tournament={tournament} entries={entries} />
+            <TournamentEntries key={tournament.id} student={s} tournament={tournament} entries={entries} onChanged={onChanged} />
           ))}
         </ul>
       )}
@@ -144,9 +145,12 @@ const WEIGH_IN = {
 } as const;
 
 /** One tournament's entries (events) for a student, with what each one owes and the hall ticket once paid. */
-function TournamentEntries({ student, tournament, entries }: { student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[] }) {
+function TournamentEntries({ student, tournament, entries, onChanged }: { student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[]; onChanged: () => void }) {
   const toast = useToast();
   const ready = entries.every((r) => r.paymentStatus !== "PENDING");
+  const due = entries.filter((r) => r.paymentStatus === "PENDING").reduce((n, r) => n + r.fee, 0);
+  const canPay = tournament.status !== "COMPLETED" && new Date(tournament.startDate) > new Date();
+  const payPath = `/student/students/${student.id}/tournaments/${tournament.id}/pay`;
   const hallTicket = (mode: "view" | "download") =>
     studentPdf(`/student/students/${student.id}/hall-tickets/${tournament.id}`, mode, `Hall_ticket_${student.studentNo ?? student.fullName}.pdf`).catch((err) => toast(errorMessage(err), false));
   return (
@@ -175,9 +179,28 @@ function TournamentEntries({ student, tournament, entries }: { student: MyStuden
           <Button size="sm" icon={<Download size={14} />} onClick={() => hallTicket("download")}>Download</Button>
         </div>
       ) : (
-        <p className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <Ticket size={14} className="shrink-0" /> Your hall ticket is emailed and available here once the entry fee is paid.
-        </p>
+        <div className="mt-2 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3 sm:flex-row sm:items-center">
+          <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-amber-900">
+            <Ticket size={16} className="mt-0.5 shrink-0" />
+            <span>
+              <span className="font-semibold">Entry fee due: {rupees(due)}</span>
+              <span className="block text-xs text-amber-800">{canPay ? "Pay now to get your hall ticket by email." : "The tournament has started — please contact the organiser."}</span>
+            </span>
+          </p>
+          {canPay && (
+            <PayNow
+              size="sm"
+              amount={due}
+              createOrder={() => studentApi(payPath, { method: "POST" })}
+              verify={(result) => studentApi(`${payPath}/verify`, { body: result })}
+              onPaid={() => {
+                toast("Payment received. Your hall ticket has been emailed.");
+                onChanged();
+              }}
+              className="shrink-0"
+            />
+          )}
+        </div>
       )}
     </li>
   );
@@ -260,11 +283,14 @@ function ChangePassword({ onClose }: { onClose: () => void }) {
 
   async function save(e?: FormEvent) {
     e?.preventDefault();
-    if (next.length < 8) return toast("New password must be at least 8 characters.", false);
+    const problem = !current ? "Enter your current password." : passwordProblem(next) ?? (next === current ? "Choose a new password that's different from the current one." : null);
+    if (problem) return toast(problem, false);
     setBusy(true);
     try {
-      await studentApi("/student/change-password", { body: { currentPassword: current, newPassword: next } });
-      toast("Password changed.");
+      // Changing the password logs out every other device; keep this one logged in with the new session.
+      const { message, token } = await studentApi<{ message: string; token: string }>("/student/change-password", { body: { currentPassword: current, newPassword: next } });
+      studentAuth.setToken(token);
+      toast(message);
       onClose();
     } catch (err) {
       toast(errorMessage(err), false);
@@ -282,7 +308,7 @@ function ChangePassword({ onClose }: { onClose: () => void }) {
     >
       <form onSubmit={save} className="space-y-4">
         <Field label="Current password"><Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} autoFocus /></Field>
-        <Field label="New password" hint="At least 8 characters"><Input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></Field>
+        <Field label="New password" hint={PASSWORD_HINT}><Input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></Field>
         <button type="submit" className="hidden" />
       </form>
     </Modal>

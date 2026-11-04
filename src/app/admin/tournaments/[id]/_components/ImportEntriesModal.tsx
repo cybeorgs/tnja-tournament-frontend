@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, XCircle } from "lucide-react";
 import { downloadFile, runImportJob, type ImportProgress } from "@/lib/api";
-import { rupees } from "@/lib/format";
+import { feeLabel } from "@/components/Payment";
 import type { TournamentDetail } from "@/lib/types";
 import { Button, Modal, cx } from "@/components/ui";
 import { ImportProgressBar, ProblemList } from "@/components/ImportStudentsModal";
@@ -16,6 +16,7 @@ interface Preview {
   invalid: number;
   entries: number;
   entryFee: number;
+  additionalEntryFee: number;
   missingColumns: string[];
   unknownColumns: string[];
 }
@@ -177,7 +178,7 @@ export function ImportEntriesModal({ tournament, open, onClose, onImported }: { 
                 </div>
                 <div className="col-span-2 rounded-xl bg-slate-50 p-3 sm:col-span-1">
                   <p className="text-2xl font-bold text-slate-800">Free</p>
-                  <p className="text-xs font-medium text-slate-500">{preview.entryFee > 0 ? `Each entry is charged ${rupees(preview.entryFee)} (unpaid until paid)` : "Free entry"}</p>
+                  <p className="text-xs font-medium text-slate-500">{preview.entryFee > 0 ? `${feeLabel(preview)} (unpaid until paid)` : "Free entry"}</p>
                 </div>
               </div>
               {preview.missingColumns.length > 0 && (

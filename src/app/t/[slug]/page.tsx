@@ -249,12 +249,12 @@ function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
         {phase === "NOT_OPEN" && (
           <>
             <p className="font-semibold text-slate-900">Registration opens on {formatDateTime(t.registrationOpensAt)}</p>
-            <p className="mt-0.5 text-slate-500">{feeLabel(t.entryFee)}. Registration runs until {formatDateTime(t.registrationClosesAt)}.</p>
+            <p className="mt-0.5 text-slate-500">{feeLabel(t)}. Registration runs until {formatDateTime(t.registrationClosesAt)}.</p>
           </>
         )}
         {phase === "OPEN" && (
           <>
-            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><CheckCircle2 size={15} className="text-brand" /> Registration open — {feeLabel(t.entryFee).toLowerCase()}</p>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><CheckCircle2 size={15} className="text-brand" /> Registration open — {feeLabel(t)}</p>
             <p className="mt-0.5 text-slate-500">Until {formatDateTime(t.registrationClosesAt)}. No late registration after that.</p>
           </>
         )}

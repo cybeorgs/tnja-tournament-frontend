@@ -17,6 +17,7 @@ export type TournamentInput = Pick<Tournament, "title" | "description" | "venue"
   closesTime: string;
   /** Rupees, as typed */
   entryFee: string;
+  additionalEntryFee: string;
 };
 
 /** What the API takes: the start and the registration moments as ISO date-times. */
@@ -26,6 +27,7 @@ export type TournamentPayload = Pick<Tournament, "title" | "description" | "venu
   registrationOpensAt: string;
   registrationClosesAt: string;
   entryFee: number;
+  additionalEntryFee: number;
 };
 
 const today = () => toLocalParts(new Date().toISOString()).date;
@@ -33,7 +35,7 @@ const today = () => toLocalParts(new Date().toISOString()).date;
 export const emptyTournament = (): TournamentInput => ({
   title: "", description: "", venue: "", city: "", startDate: "", startTime: "09:00", endDate: null,
   opensDate: today(), opensTime: "09:00", closesDate: "", closesTime: "23:59",
-  level: "STATE", gender: "BOTH", ageGroups: [], entryFee: "",
+  level: "STATE", gender: "BOTH", ageGroups: [], entryFee: "", additionalEntryFee: "",
 });
 
 export function fromTournament(t: Tournament): TournamentInput {
@@ -44,7 +46,7 @@ export function fromTournament(t: Tournament): TournamentInput {
     title: t.title, description: t.description, venue: t.venue, city: t.city,
     startDate: start.date, startTime: start.time, endDate: t.endDate ? toDateInput(t.endDate) : null,
     opensDate: opens.date, opensTime: opens.time, closesDate: closes.date, closesTime: closes.time,
-    level: t.level, gender: t.gender, ageGroups: t.ageGroups, entryFee: String(t.entryFee ?? 0),
+    level: t.level, gender: t.gender, ageGroups: t.ageGroups, entryFee: String(t.entryFee ?? 0), additionalEntryFee: String(t.additionalEntryFee ?? t.entryFee ?? 0),
   };
 }
 
@@ -57,6 +59,7 @@ function toPayload(f: TournamentInput): TournamentPayload {
     registrationOpensAt: fromLocalParts(opensDate, opensTime),
     registrationClosesAt: fromLocalParts(closesDate, closesTime),
     entryFee: Number(f.entryFee) || 0,
+    additionalEntryFee: Number(f.additionalEntryFee) || 0,
   };
 }
 
@@ -67,7 +70,9 @@ function scheduleProblem(p: TournamentPayload): string | null {
   if (!p.registrationClosesAt) return "Enter when registration closes.";
   if (p.registrationOpensAt >= p.registrationClosesAt) return "Registration must close after it opens.";
   if (p.registrationClosesAt > p.startDate) return "Registration must close before the tournament starts.";
-  if (!Number.isInteger(p.entryFee) || p.entryFee < 0) return "Enter the entry fee in whole rupees (0 for free).";
+  if (!Number.isInteger(p.entryFee) || p.entryFee < 0) return "Enter the first category fee in whole rupees (0 for free).";
+  if (!Number.isInteger(p.additionalEntryFee) || p.additionalEntryFee < 0) return "Enter the additional category fee in whole rupees (0 for free).";
+  if (p.additionalEntryFee > p.entryFee) return "The additional category fee should be lower than (or equal to) the first category fee.";
   return null;
 }
 
@@ -132,6 +137,9 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
     if (saving) return;
     setError("");
     const problem =
+      // An empty fee box must not be saved as ₹0 (it would make those categories free).
+      (form.entryFee.trim() === "" ? "Enter the first category fee (0 for free)." : null) ??
+      (form.additionalEntryFee.trim() === "" ? "Enter the fee for each additional category (0 to make them free)." : null) ??
       scheduleProblem(payload) ??
       (!form.ageGroups.length ? "Pick at least one age group." : null);
     if (problem) return setError(problem);
@@ -221,25 +229,32 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
             onTime={(v) => set("closesTime", v)}
           />
         </div>
-        <Field label="Entry fee" hint="Per entry: a student entering two age groups pays twice. 0 = free." className="sm:max-w-xs">
-          <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm font-semibold text-slate-400">₹</span>
-            <Input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First category fee" hint="A player's first category (age group). 0 = free.">
+            <RupeeInput
               value={form.entryFee}
-              onChange={(e) => set("entryFee", e.target.value)}
-              placeholder="0"
-              required
-              className="pl-8"
+              onChange={(v) => setForm((f) => ({ ...f, entryFee: v, additionalEntryFee: f.additionalEntryFee === "" || f.additionalEntryFee === f.entryFee ? v : f.additionalEntryFee }))}
             />
-          </div>
-        </Field>
+          </Field>
+          <Field
+            label="Each additional category"
+            hint="The same player entering more categories pays this for each one. Lower than (or equal to) the first category fee."
+            error={payload.additionalEntryFee > payload.entryFee ? "Should not be more than the first category fee" : undefined}
+          >
+            <RupeeInput value={form.additionalEntryFee} onChange={(v) => set("additionalEntryFee", v)} invalid={payload.additionalEntryFee > payload.entryFee} />
+          </Field>
+        </div>
+        {payload.entryFee > 0 && payload.additionalEntryFee <= payload.entryFee && (
+          <p className="rounded-xl bg-brand-soft/60 px-4 py-2.5 text-xs text-slate-600">
+            Example: a player entering 3 categories pays{" "}
+            <span className="font-semibold text-slate-900">
+              {rupees(payload.entryFee)} + 2 × {rupees(payload.additionalEntryFee)} = {rupees(payload.entryFee + 2 * payload.additionalEntryFee)}
+            </span>
+          </p>
+        )}
         {!scheduleProblem(payload) && (
           <ol className="space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens ({payload.entryFee > 0 ? `${rupees(payload.entryFee)} per entry` : "free"})</li>
+            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens ({payload.entryFee > 0 ? (payload.additionalEntryFee < payload.entryFee ? `${rupees(payload.entryFee)} first category, ${rupees(payload.additionalEntryFee)} each additional` : `${rupees(payload.entryFee)} per category`) : "free"})</li>
             <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationClosesAt)}</span> — registration closes (no late entries)</li>
             <li><span className="font-semibold text-slate-800">{formatDateTime(payload.startDate)}</span> — tournament starts</li>
           </ol>
@@ -295,5 +310,14 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
         <Button type="submit" loading={saving}>{submitLabel}</Button>
       </div>
     </form>
+  );
+}
+
+function RupeeInput({ value, onChange, invalid }: { value: string; onChange: (v: string) => void; invalid?: boolean }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm font-semibold text-slate-400">₹</span>
+      <Input type="number" inputMode="numeric" min={0} step={1} value={value} onChange={(e) => onChange(e.target.value)} placeholder="0" required aria-invalid={invalid || undefined} className="pl-8" />
+    </div>
   );
 }

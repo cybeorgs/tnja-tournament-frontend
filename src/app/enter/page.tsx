@@ -3,7 +3,7 @@
 import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Clock, Loader2, MapPin, Mail } from "lucide-react";
+import { AlertTriangle, ArrowRight, Clock, Loader2, MapPin, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { lookupPincode, type PincodeMatch } from "@/lib/locations";
 import type { Tournament } from "@/lib/types";
@@ -13,6 +13,7 @@ import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/compo
 import { StudentFields, emptyDocs, emptyStudent, validateDocs, validateStudent, type StudentDocs, type StudentInput } from "@/components/StudentFields";
 import { EntryDone, ErrorText, EventsPicker, emptyEvents, eventsProblem, type Entry, type EventsValue } from "@/components/TournamentEntry";
 import { useAadhaarDigilocker } from "@/components/AadhaarDigilocker";
+import { FeeTotal } from "@/components/Payment";
 import { useEmailOtp } from "@/components/EmailOtpField";
 import { useMeta, useSettings } from "@/lib/hooks";
 import { competitionAge, eligibleAgeGroups } from "@/lib/categories";
@@ -48,8 +49,39 @@ function EnterFlow() {
 type Step =
   | { kind: "pincode" }
   | { kind: "details" }
-  | { kind: "done"; studentNo: string; name: string; entries: Entry[]; newAccount: boolean }
-  | { kind: "pending"; email: string; tempId: string; newAccount: boolean };
+  | { kind: "done"; studentNo: string; name: string; email: string; entries: Entry[]; newAccount: boolean; payToken: string | null; loginEmail: LoginEmail }
+  | { kind: "pending"; email: string; tempId: string; newAccount: boolean; loginEmail: LoginEmail };
+
+/** Whether the username/password email went out (the backend sends it before replying). */
+type LoginEmail = "SENT" | "FAILED" | "NOT_CONFIGURED";
+
+/** Where the login details went, or what to do when the email couldn't be sent. */
+function LoginEmailNote({ status, email, newAccount, withPdf }: { status: LoginEmail; email: string; newAccount: boolean; withPdf?: boolean }) {
+  if (status === "SENT") {
+    return (
+      <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-600">
+        <Mail size={16} className="mt-0.5 shrink-0 text-brand" />
+        <span>
+          We&apos;ve emailed your username{newAccount ? " and password" : ""}{withPdf ? " with your registration PDF" : ""} to <span className="font-semibold text-slate-800">{email}</span>.
+          <span className="mt-0.5 block text-xs text-slate-500">
+            {newAccount ? "Not in your inbox in a few minutes? Check Spam / Promotions." : "Log in with the password you already use for this email."}
+          </span>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+      <span>
+        <span className="font-semibold">We couldn&apos;t email your login details to {email}.</span> Your registration is saved.
+        <span className="mt-0.5 block text-xs text-amber-800">
+          Go to <Link href="/student/login" className="font-semibold underline">Student login</Link> → “Forgot password?” and enter this email to get a link to set your password. Your username is your email.
+        </span>
+      </span>
+    </div>
+  );
+}
 
 function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBack: () => void }) {
   const lockGender = tournament.gender === "BOTH" ? undefined : tournament.gender;
@@ -107,7 +139,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
 
     setBusy(true);
     try {
-      const created = await api<{ status: string; studentNo: string | null; tempId: string | null; fullName: string; email: string; newAccount: boolean; entries: Entry[] }>("/public/students/register", {
+      const created = await api<{ status: string; studentNo: string | null; tempId: string | null; fullName: string; email: string; newAccount: boolean; entries: Entry[]; payToken: string | null; loginEmail: LoginEmail }>("/public/students/register", {
         body: {
           ...s,
           agreedToTerms: true,
@@ -129,8 +161,8 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
       });
       setStep(
         created.studentNo
-          ? { kind: "done", studentNo: created.studentNo, name: created.fullName, entries: created.entries, newAccount: created.newAccount }
-          : { kind: "pending", email: created.email, tempId: created.tempId ?? "", newAccount: created.newAccount },
+          ? { kind: "done", studentNo: created.studentNo, name: created.fullName, email: created.email, entries: created.entries, newAccount: created.newAccount, payToken: created.payToken, loginEmail: created.loginEmail }
+          : { kind: "pending", email: created.email, tempId: created.tempId ?? "", newAccount: created.newAccount, loginEmail: created.loginEmail },
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -156,7 +188,10 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
               <StudentFields value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} digilocker={needAadhaarCheck ? digilocker : undefined} docs={docs} onDocsChange={setDocs} />
               <div className="mt-8">
                 {asksEvents ? (
-                  <EventsPicker eligible={eligible} age={age} gender={student.gender} lockGender={lockGender} value={eventsValue} onChange={changeEvents} />
+                  <div className="space-y-4">
+                    <EventsPicker eligible={eligible} age={age} gender={student.gender} lockGender={lockGender} value={eventsValue} onChange={changeEvents} />
+                    <FeeTotal fees={tournament} count={events.ageGroups.filter((g) => eligible.includes(g)).length} />
+                  </div>
                 ) : (
                   <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                     <span className="font-semibold text-slate-800">Events:</span> because you live outside Tamil Nadu, your registration is checked first. Once it&apos;s approved, log in to choose the events you will play.
@@ -180,7 +215,8 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
               studentNo={step.studentNo}
               entries={step.entries}
               tournament={tournament}
-              note={<span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-slate-600"><Mail size={14} className="text-brand" /> We&apos;ve emailed your username{step.newAccount ? ", password" : ""} and registration PDF{step.entries.every((e) => e.paymentStatus !== "PENDING") ? ", and your hall ticket" : ". Your hall ticket is emailed after payment."}</span>}
+              payToken={step.payToken}
+              note={<LoginEmailNote status={step.loginEmail} email={step.email} newAccount={step.newAccount} withPdf />}
             />
           )}
 
@@ -196,9 +232,11 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
                 </p>
               )}
               <p className="mt-2 text-sm text-slate-500">
-                We&apos;ve emailed your temporary ID, username and password to <span className="font-semibold text-slate-700">{step.email}</span>. Log in any time to see the status.
-                Our team will check the document you uploaded; once you&apos;re approved we&apos;ll email your registration PDF, then you can choose your events.
+                Our team will check the document you uploaded; once you&apos;re approved we&apos;ll email your registration PDF, then you can log in and choose your events.
               </p>
+              <div className="mt-4">
+                <LoginEmailNote status={step.loginEmail} email={step.email} newAccount={step.newAccount} />
+              </div>
               <div className="mt-6">
                 <Link href="/student/login" className="text-sm font-semibold text-brand hover:underline">Go to student login</Link>
               </div>

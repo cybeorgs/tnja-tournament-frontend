@@ -22,6 +22,8 @@ export interface Settings {
   updatedAt: string;
   /** Public settings only: self-registration asks for Aadhaar verification through DigiLocker */
   aadhaarVerification?: boolean;
+  /** Public settings only: entry fees can be paid online (Razorpay) */
+  onlinePayment?: boolean;
 }
 
 export interface Meta {
@@ -46,8 +48,10 @@ export interface Tournament {
   registrationOpensAt: string;
   /** Registration closes (there is no late registration) */
   registrationClosesAt: string;
-  /** Entry fee per entry (age group) in rupees; 0 = free */
+  /** Fee for a player's first category (age group), in rupees; 0 = free */
   entryFee: number;
+  /** Fee for each further category the same player enters (never more than entryFee) */
+  additionalEntryFee: number;
   level: string;
   gender: "MALE" | "FEMALE" | "BOTH";
   ageGroups: string[];
