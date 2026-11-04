@@ -8,6 +8,7 @@ import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
 import type { StudentDetail as Detail } from "@/lib/types";
 import { Badge, Button, EmptyState, Modal, Spinner, Textarea } from "./ui";
 import { PaymentBadge } from "./Payment";
+import { findBelt } from "@/lib/belts";
 import { errorMessage, useToast } from "./Toast";
 
 /** Read-only view of everything a student registered with, plus their tournament history. */
@@ -66,6 +67,8 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
       <Group title="Contact">
         <Item label="Mobile" value={s.phone} />
         <Item label="Alternate mobile" value={s.alternatePhone} />
+        <Item label="Parent's mobile" value={s.parentPhone} />
+        <Item label="Emergency contact" value={s.emergencyPhone} />
         <Item label="Email" value={s.email} />
         <Item label="Aadhaar" value={s.aadhaarNumber ? `XXXX XXXX ${s.aadhaarNumber.slice(-4)}` : ""} />
         <Item label="Blood group" value={s.bloodGroup} />
@@ -83,7 +86,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
         <Item label="Institution" value={[s.institutionName, s.institutionType && titleCase(s.institutionType)].filter(Boolean).join(" · ")} />
         <Item label="Standard / year" value={[s.grade, s.degreeDepartment].filter(Boolean).join(" · ")} />
         <Item label="Club" value={s.club} />
-        <Item label="Belt" value={s.belt} />
+        <Item label="Belt" value={findBelt(s.belt)?.label ?? s.belt} />
       </Group>
 
       <Group title="Additional details">

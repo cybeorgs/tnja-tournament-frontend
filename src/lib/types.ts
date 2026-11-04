@@ -111,6 +111,8 @@ export interface Student {
   bloodGroup: string;
   aadhaarNumber: string | null;
   alternatePhone: string;
+  parentPhone: string;
+  emergencyPhone: string;
   email: string;
   nationality: string;
   address: string;

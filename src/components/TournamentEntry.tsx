@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, CheckCircle2, Download, LogIn, Ticket, Trophy } from "lucide-react";
 import { API_BASE, api } from "@/lib/api";
 import { useMeta, useNow } from "@/lib/hooks";
-import { ownAgeGroup, weightClassFor } from "@/lib/categories";
+import { competitionAge, ownAgeGroup, weightClassFor } from "@/lib/categories";
 import { rupees } from "@/lib/format";
 import { registrationPhase, type Gender, type PaymentStatus, type StudentGender, type Tournament } from "@/lib/types";
 import { FeeTotal, PaymentBadge } from "./Payment";
@@ -350,7 +350,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
     }
   }
 
-  const age = new Date(tournament.startDate).getFullYear() - new Date(dob).getFullYear();
+  const age = competitionAge(dob, tournament.startDate);
 
   return (
     <form onSubmit={submit} className="mx-auto max-w-2xl space-y-5">

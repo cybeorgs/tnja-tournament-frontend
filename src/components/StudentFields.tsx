@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, Check, ClipboardList, GraduationCap, Home, Loader2, MapPin, Medal, UserRound, Wallet } from "lucide-react";
+import { Camera, Check, ClipboardList, GraduationCap, Home, Loader2, Lock, MapPin, Medal, UserRound, Wallet } from "lucide-react";
 import type { Gender, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, useLocations } from "@/lib/locations";
@@ -9,6 +9,7 @@ import { DateInput, Field, Input, Select, cx } from "./ui";
 import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
 import { PhotoUpload } from "./PhotoUpload";
+import { BeltSelect } from "./BeltSelect";
 import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 
 /**
@@ -18,7 +19,7 @@ import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 export type StudentInput = {
   residingPincode: string; outsideTamilNadu: boolean; district: string; taluk: string;
   fullName: string; fatherName: string; motherName: string; gender: StudentGender | ""; dob: string;
-  bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; email: string; nationality: string;
+  bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; parentPhone: string; emergencyPhone: string; email: string; nationality: string;
   address: string; city: string; state: string; pincode: string;
   annualIncome: string; isBPL: boolean;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
@@ -30,7 +31,7 @@ export type StudentInput = {
 export const emptyStudent: StudentInput = {
   residingPincode: "", outsideTamilNadu: false, district: "", taluk: "",
   fullName: "", fatherName: "", motherName: "", gender: "", dob: "",
-  bloodGroup: "", aadhaarNumber: "", phone: "", alternatePhone: "", email: "", nationality: "Indian",
+  bloodGroup: "", aadhaarNumber: "", phone: "", alternatePhone: "", parentPhone: "", emergencyPhone: "", email: "", nationality: "Indian",
   address: "", city: "", state: "Tamil Nadu", pincode: "",
   annualIncome: "", isBPL: false,
   institutionType: "SCHOOL", institutionName: "", grade: "", degreeDepartment: "",
@@ -41,7 +42,7 @@ export const emptyStudent: StudentInput = {
 export const fromStudent = (s: Student): StudentInput => ({
   residingPincode: s.residingPincode, outsideTamilNadu: s.outsideTamilNadu, district: s.district, taluk: s.taluk,
   fullName: s.fullName, fatherName: s.fatherName, motherName: s.motherName, gender: s.gender, dob: toDateInput(s.dob),
-  bloodGroup: s.bloodGroup, aadhaarNumber: s.aadhaarNumber ?? "", phone: s.phone, alternatePhone: s.alternatePhone, email: s.email, nationality: s.nationality || "Indian",
+  bloodGroup: s.bloodGroup, aadhaarNumber: s.aadhaarNumber ?? "", phone: s.phone, alternatePhone: s.alternatePhone, parentPhone: s.parentPhone ?? "", emergencyPhone: s.emergencyPhone ?? "", email: s.email, nationality: s.nationality || "Indian",
   address: s.address, city: s.city, state: s.state || "Tamil Nadu", pincode: s.pincode,
   annualIncome: s.annualIncome === null ? "" : String(s.annualIncome), isBPL: s.isBPL,
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
@@ -59,6 +60,8 @@ export const emptyDocs: StudentDocs = { photo: "", bplProof: "", nativityProof: 
 /** What still has to be uploaded (or filled in) when registering themselves, or null. */
 export function validateDocs(f: StudentInput, d: StudentDocs): string | null {
   if (!d.photo) return "Please upload a passport-size photograph.";
+  if (!f.parentPhone) return "Please enter the parent's mobile number.";
+  if (!f.emergencyPhone) return "Please enter an emergency contact number.";
   const kg = parseFloat(f.weightKg);
   if (!kg) return "Please enter the player's weight (Additional details).";
   if (kg < 10 || kg > 250) return "Check the player's weight (Additional details).";
@@ -83,33 +86,35 @@ export function validateStudent(f: StudentInput): string | null {
   if (!/^\d{12}$/.test(f.aadhaarNumber)) return "Aadhaar number must be 12 digits.";
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
   if (f.alternatePhone && !MOBILE.test(f.alternatePhone)) return "Alternate mobile number isn't valid.";
+  if (f.parentPhone && !MOBILE.test(f.parentPhone)) return "Parent's mobile number isn't valid.";
+  if (f.emergencyPhone && !MOBILE.test(f.emergencyPhone)) return "Emergency contact number isn't valid.";
+  if (f.gender !== "MALE" && f.gender !== "FEMALE") return "Choose male or female.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return "Enter a valid email address.";
   if (f.weightKg && !(parseFloat(f.weightKg) >= 10 && parseFloat(f.weightKg) <= 250)) return "Weight must be between 10 and 250 kg.";
   return null;
 }
 
-const GENDERS = [{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Female" }, { value: "OTHER", label: "Other" }];
+const GENDERS = [{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Female" }];
 const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "B+ve", "B-ve", "AB+ve", "AB-ve"];
 const STANDARDS = Array.from({ length: 12 }, (_, i) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"} Standard`);
 const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
-const BELTS = ["", "White", "Yellow", "Orange", "Green", "Blue", "Brown", "Black"];
 
 const digits = (v: string, max: number) => v.replace(/\D/g, "").slice(0, max);
 const letters = (v: string) => v.replace(/[^A-Za-z\s.'-]/g, "");
 
+/** Age by birth year only (this year − birth year), the way categories are decided. */
 function ageFrom(dob: string): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const age = new Date().getFullYear() - Number(dob.slice(0, 4));
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, docs, onDocsChange }: {
+export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, docs, onDocsChange, publicForm }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
+  /** Players registering themselves: coach, manager, district president and secretary are left to the admin */
+  publicForm?: boolean;
   /** Shows a Verify button next to the email (public registration) */
   emailOtp?: EmailOtp;
   /** Require the Aadhaar to be verified with DigiLocker, its pincode matching the residing pincode (public registration) */
@@ -203,12 +208,11 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         <Field label="Gender" required group>
           <Segmented
             value={value.gender}
-            // A boys-only or girls-only tournament still accepts students who identify as Other.
-            options={GENDERS.filter((g) => !lockGender || g.value === lockGender || g.value === "OTHER")}
+            options={GENDERS.filter((g) => !lockGender || g.value === lockGender)}
             onChange={(g) => set("gender", g as StudentGender)}
           />
         </Field>
-        <Field label="Date of birth" required hint={age !== null ? `${age} years old` : undefined}>
+        <Field label="Date of birth" required hint={age !== null ? `Born ${value.dob.slice(0, 4)} · counts as ${age} this year` : "Categories go by birth year only"}>
           <DateInput max={latestDob} value={value.dob} onChange={(v) => set("dob", v)} />
         </Field>
         <Field label="Blood group" required>
@@ -229,6 +233,12 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         </Field>
         <Field label="Alternate mobile">
           <PhoneInput value={value.alternatePhone} onChange={(v) => set("alternatePhone", v)} />
+        </Field>
+        <Field label="Parent's mobile" required={publicForm} hint="Father, mother or guardian">
+          <PhoneInput value={value.parentPhone} onChange={(v) => set("parentPhone", v)} />
+        </Field>
+        <Field label="Emergency contact number" required={publicForm} hint="Who to call in an emergency">
+          <PhoneInput value={value.emergencyPhone} onChange={(v) => set("emergencyPhone", v)} />
         </Field>
         <Field label="Nationality" required>
           <Input value={value.nationality} onChange={(e) => set("nationality", letters(e.target.value))} />
@@ -315,28 +325,35 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
             <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-400">kg</span>
           </div>
         </Field>
-        <Field label="Coach name">
-          <Input value={value.coachName} onChange={(e) => set("coachName", letters(e.target.value))} />
-        </Field>
-        <Field label="Manager name">
-          <Input value={value.managerName} onChange={(e) => set("managerName", letters(e.target.value))} />
-        </Field>
-        <Field label="District president">
-          <Input value={value.districtPresident} onChange={(e) => set("districtPresident", letters(e.target.value))} />
-        </Field>
-        <Field label="District secretary">
-          <Input value={value.districtSecretary} onChange={(e) => set("districtSecretary", letters(e.target.value))} />
-        </Field>
+        {publicForm ? (
+          <p className="flex items-start gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-500 sm:col-span-1 lg:col-span-2">
+            <Lock size={14} className="mt-0.5 shrink-0 text-slate-400" />
+            <span>Coach, manager, district president and district secretary are filled in by the {"association's"} office — you don&apos;t need to enter them.</span>
+          </p>
+        ) : (
+          <>
+            <Field label="Coach name">
+              <Input value={value.coachName} onChange={(e) => set("coachName", letters(e.target.value))} />
+            </Field>
+            <Field label="Manager name">
+              <Input value={value.managerName} onChange={(e) => set("managerName", letters(e.target.value))} />
+            </Field>
+            <Field label="District president">
+              <Input value={value.districtPresident} onChange={(e) => set("districtPresident", letters(e.target.value))} />
+            </Field>
+            <Field label="District secretary">
+              <Input value={value.districtSecretary} onChange={(e) => set("districtSecretary", letters(e.target.value))} />
+            </Field>
+          </>
+        )}
       </Section>
 
       <Section icon={<Medal />} title="Club & belt" optional>
         <Field label="Club / academy">
           <Input value={value.club} onChange={(e) => set("club", e.target.value)} />
         </Field>
-        <Field label="Belt">
-          <Select value={value.belt} onChange={(e) => set("belt", e.target.value)}>
-            {BELTS.map((b) => <option key={b} value={b}>{b || "Select"}</option>)}
-          </Select>
+        <Field label="Belt grade" group className="sm:col-span-1 lg:col-span-2">
+          <BeltSelect value={value.belt} onChange={(v) => set("belt", v)} />
         </Field>
       </Section>
     </div>

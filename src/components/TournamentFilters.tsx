@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, Users, X } from "lucide-react";
 import { Input, Select, cx } from "./ui";
+import { competitionAge } from "@/lib/categories";
 
 /**
  * Filters for the tournament sections (students, draws, results, referees). Each section shows the
@@ -44,7 +45,8 @@ export function sortWeights(weights: string[]) {
 }
 
 /** Age as the tournament counts it: tournament year minus birth year. */
-export const tournamentAge = (dob: string, tournamentStart: string) => new Date(tournamentStart).getFullYear() - new Date(dob).getFullYear();
+/** Age at the tournament by birth year only (same rule as the categories). */
+export const tournamentAge = (dob: string, tournamentStart: string) => competitionAge(dob, tournamentStart);
 
 export const matchesText = (q: string, ...fields: (string | null | undefined)[]) => {
   const needle = q.trim().toLowerCase();

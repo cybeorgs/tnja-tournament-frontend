@@ -1,12 +1,18 @@
 import type { Gender, Meta } from "./types";
 
-/** Mirror of the backend rule: age = tournament year − birth year. */
+/** Birth year from a date of birth ("2010-05-14" or an ISO date-time): the year as written, whatever the time zone. */
+export const birthYear = (dob: string) => Number(dob.slice(0, 4));
+
+/** The calendar year of a moment in India (the tournament's time zone). */
+export const yearInIndia = (iso: string) => Number(new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", year: "numeric" }));
+
+/** Mirror of the backend rule: age = tournament year − birth year. The month and day of birth never count. */
 export function competitionAge(dob: string, tournamentDate: string): number {
-  return new Date(tournamentDate).getFullYear() - new Date(dob).getFullYear();
+  return yearInIndia(tournamentDate) - birthYear(dob);
 }
 
 /** Age groups a player may enter: their own group plus the older groups they may play up into
- *  (Cadet 15–17 → Cadet, Junior, Senior · Junior 18–20 → Junior, Senior · Senior 21+ → Senior). */
+ *  (Cadet 14–16 → Cadet, Junior, and Senior from 15 · Junior 17–19 → Junior, Senior · Senior 20+ → Senior). */
 export function eligibleAgeGroups(meta: Meta, dob: string, tournamentDate: string, allowed: string[]): string[] {
   if (!dob) return [];
   const age = competitionAge(dob, tournamentDate);

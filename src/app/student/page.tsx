@@ -10,6 +10,7 @@ import type { Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
 import { PayNow } from "@/components/PayNow";
+import { findBelt } from "@/lib/belts";
 import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { TournamentEntry } from "@/components/TournamentEntry";
@@ -218,7 +219,7 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
         ["Date of birth", formatDate(s.dob)], ["Blood group", s.bloodGroup], ["Aadhaar", s.aadhaarNumber], ["Nationality", s.nationality],
       ],
     },
-    { title: "Contact", rows: [["Mobile", s.phone], ["Alternate mobile", s.alternatePhone], ["Email", s.email]] },
+    { title: "Contact", rows: [["Mobile", s.phone], ["Alternate mobile", s.alternatePhone], ["Parent's mobile", s.parentPhone], ["Emergency contact", s.emergencyPhone], ["Email", s.email]] },
     {
       title: "Address",
       rows: [["Address", s.address], ["City", s.city], ["State", s.state], ["Pincode", s.pincode], ["District", s.district], ["Taluk", s.taluk], ["Residing pincode", s.residingPincode]],
@@ -227,7 +228,7 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
       title: "Education & academy",
       rows: [
         [INSTITUTION[s.institutionType] ?? "Institution", s.institutionName], ["Standard / year", s.grade], ["Department", s.degreeDepartment],
-        ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", s.belt],
+        ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
       ],
     },
   ];

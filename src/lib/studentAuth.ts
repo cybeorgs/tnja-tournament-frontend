@@ -83,6 +83,8 @@ export interface MyStudent {
   aadhaarNumber: string | null;
   phone: string;
   alternatePhone: string;
+  parentPhone: string;
+  emergencyPhone: string;
   email: string;
   nationality: string;
   residingPincode: string;

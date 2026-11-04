@@ -185,7 +185,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
 
           {step.kind === "details" && (
             <form onSubmit={register} noValidate>
-              <StudentFields value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} digilocker={needAadhaarCheck ? digilocker : undefined} docs={docs} onDocsChange={setDocs} />
+              <StudentFields publicForm value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} digilocker={needAadhaarCheck ? digilocker : undefined} docs={docs} onDocsChange={setDocs} />
               <div className="mt-8">
                 {asksEvents ? (
                   <div className="space-y-4">
