@@ -132,6 +132,8 @@ export interface Student {
   districtSecretary: string;
   source: "SELF" | "ADMIN";
   createdAt: string;
+  /** Set by the database on every change (read-only) */
+  updatedAt: string;
   _count?: { registrations: number };
 }
 

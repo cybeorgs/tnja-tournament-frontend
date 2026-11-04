@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, Clock, FileText, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileText, History, Lock, XCircle } from "lucide-react";
 import { api, fetchObjectUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
@@ -9,6 +9,8 @@ import type { StudentDetail as Detail } from "@/lib/types";
 import { Badge, Button, EmptyState, Modal, Spinner, Textarea } from "./ui";
 import { PaymentBadge } from "./Payment";
 import { findBelt } from "@/lib/belts";
+import { AuditTimeline, auditTime, type AuditEntry } from "./AuditLog";
+import type { Paged } from "@/lib/types";
 import { errorMessage, useToast } from "./Toast";
 
 /** Read-only view of everything a student registered with, plus their tournament history. */
@@ -100,6 +102,8 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
         <Item label="BPL family" value={s.outsideTamilNadu ? "—" : s.isBPL ? "Yes" : "No"} />
       </Group>
 
+      <RecordHistory studentId={s.id} createdAt={s.createdAt} updatedAt={s.updatedAt} />
+
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Tournaments</h3>
         {s.registrations.length ? (
@@ -144,6 +148,30 @@ export function StatusBadge({ status }: { status: Detail["status"] }) {
   if (status === "PENDING") return <Badge color="yellow"><Clock size={11} /> Waiting for approval</Badge>;
   if (status === "REJECTED") return <Badge color="red"><XCircle size={11} /> Rejected</Badge>;
   return <Badge color="green"><CheckCircle2 size={11} /> Approved</Badge>;
+}
+
+/** When the record was created and last changed (set by the database, read-only), and its full edit history. */
+function RecordHistory({ studentId, createdAt, updatedAt }: { studentId: string; createdAt: string; updatedAt: string }) {
+  const { data, loading, error } = useApi<Paged<AuditEntry>>(`/audit/students?studentId=${studentId}&pageSize=100`);
+  return (
+    <div>
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400"><History size={13} /> Record history</h3>
+      <div className="mb-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs sm:grid-cols-2">
+        <p><span className="block text-slate-500">Created</span><span className="font-mono font-semibold text-slate-800">{auditTime(createdAt)} IST</span></p>
+        <p><span className="block text-slate-500">Last updated</span><span className="font-mono font-semibold text-slate-800">{auditTime(updatedAt)} IST</span></p>
+        <p className="flex items-center gap-1.5 text-slate-500 sm:col-span-2"><Lock size={12} /> Recorded automatically. These times and the history below can&apos;t be edited or deleted.</p>
+      </div>
+      {loading && !data ? (
+        <Spinner />
+      ) : error ? (
+        <p className="text-sm text-red-600">{error}</p>
+      ) : data?.items.length ? (
+        <AuditTimeline entries={data.items} />
+      ) : (
+        <p className="text-sm text-slate-400">No changes recorded yet (changes are recorded from now on).</p>
+      )}
+    </div>
+  );
 }
 
 /** The passport photo, loaded with the admin's login (it isn't public). */

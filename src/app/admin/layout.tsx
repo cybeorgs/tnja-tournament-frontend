@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IndianRupee, LayoutDashboard, LogOut, Settings as SettingsIcon, Trophy, Users } from "lucide-react";
+import { History, IndianRupee, LayoutDashboard, LogOut, Settings as SettingsIcon, Trophy, Users } from "lucide-react";
 import { api, auth } from "@/lib/api";
 import { useSettings } from "@/lib/hooks";
 import { Brand, brandLogo, regNoLabel } from "@/components/Brand";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/admin/tournaments", label: "Tournaments", short: "Events", icon: Trophy },
   { href: "/admin/students", label: "Students", short: "Students", icon: Users },
   { href: "/admin/payments", label: "Payments", short: "Payments", icon: IndianRupee },
+  { href: "/admin/audit", label: "Audit log", short: "Log", icon: History },
   { href: "/admin/settings", label: "Settings", short: "Settings", icon: SettingsIcon },
 ];
 
@@ -93,7 +94,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom tab bar */}
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] backdrop-blur-lg lg:hidden">
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className="mx-auto grid max-w-xl grid-cols-6">
           {NAV.map(({ href, short, icon: Icon, exact }) => {
             const active = isActive(href, exact);
             return (
