@@ -66,9 +66,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
 
       <Group title="Contact">
         <Item label="Mobile" value={s.phone} />
-        <Item label="Alternate mobile" value={s.alternatePhone} />
-        <Item label="Parent's mobile" value={s.parentPhone} />
-        <Item label="Emergency contact" value={s.emergencyPhone} />
+        <Item label="Parent / emergency contact" value={s.parentPhone || s.emergencyPhone} />
         <Item label="Email" value={s.email} />
         <Item label="Aadhaar" value={s.aadhaarNumber ? `XXXX XXXX ${s.aadhaarNumber.slice(-4)}` : ""} />
         <Item label="Blood group" value={s.bloodGroup} />

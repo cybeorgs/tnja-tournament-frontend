@@ -219,7 +219,7 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
         ["Date of birth", formatDate(s.dob)], ["Blood group", s.bloodGroup], ["Aadhaar", s.aadhaarNumber], ["Nationality", s.nationality],
       ],
     },
-    { title: "Contact", rows: [["Mobile", s.phone], ["Alternate mobile", s.alternatePhone], ["Parent's mobile", s.parentPhone], ["Emergency contact", s.emergencyPhone], ["Email", s.email]] },
+    { title: "Contact", rows: [["Mobile", s.phone], ["Parent / emergency contact", s.parentPhone || s.emergencyPhone], ["Email", s.email]] },
     {
       title: "Address",
       rows: [["Address", s.address], ["City", s.city], ["State", s.state], ["Pincode", s.pincode], ["District", s.district], ["Taluk", s.taluk], ["Residing pincode", s.residingPincode]],

@@ -60,8 +60,7 @@ export const emptyDocs: StudentDocs = { photo: "", bplProof: "", nativityProof: 
 /** What still has to be uploaded (or filled in) when registering themselves, or null. */
 export function validateDocs(f: StudentInput, d: StudentDocs): string | null {
   if (!d.photo) return "Please upload a passport-size photograph.";
-  if (!f.parentPhone) return "Please enter the parent's mobile number.";
-  if (!f.emergencyPhone) return "Please enter an emergency contact number.";
+  if (!f.parentPhone) return "Please enter the parent / emergency contact number.";
   const kg = parseFloat(f.weightKg);
   if (!kg) return "Please enter the player's weight (Additional details).";
   if (kg < 10 || kg > 250) return "Check the player's weight (Additional details).";
@@ -85,9 +84,7 @@ export function validateStudent(f: StudentInput): string | null {
   if (!PINCODE.test(f.pincode)) return "Address pincode must be 6 digits.";
   if (!/^\d{12}$/.test(f.aadhaarNumber)) return "Aadhaar number must be 12 digits.";
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
-  if (f.alternatePhone && !MOBILE.test(f.alternatePhone)) return "Alternate mobile number isn't valid.";
-  if (f.parentPhone && !MOBILE.test(f.parentPhone)) return "Parent's mobile number isn't valid.";
-  if (f.emergencyPhone && !MOBILE.test(f.emergencyPhone)) return "Emergency contact number isn't valid.";
+  if (f.parentPhone && !MOBILE.test(f.parentPhone)) return "Parent / emergency contact number isn't valid.";
   if (f.gender !== "MALE" && f.gender !== "FEMALE") return "Choose male or female.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return "Enter a valid email address.";
   if (f.weightKg && !(parseFloat(f.weightKg) >= 10 && parseFloat(f.weightKg) <= 250)) return "Weight must be between 10 and 250 kg.";
@@ -221,6 +218,9 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
             {BLOOD_GROUPS.map((b) => <option key={b}>{b}</option>)}
           </Select>
         </Field>
+        <Field label="Nationality" required>
+          <Input value={value.nationality} onChange={(e) => set("nationality", letters(e.target.value))} />
+        </Field>
         {digilocker ? (
           <AadhaarDigilockerField value={value.aadhaarNumber} onChange={(v) => set("aadhaarNumber", v)} pincode={value.residingPincode} dob={value.dob} digilocker={digilocker} className="sm:col-span-2 lg:col-span-3" />
         ) : (
@@ -231,17 +231,9 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         <Field label="Mobile" required>
           <PhoneInput value={value.phone} onChange={(v) => set("phone", v)} />
         </Field>
-        <Field label="Alternate mobile">
-          <PhoneInput value={value.alternatePhone} onChange={(v) => set("alternatePhone", v)} />
-        </Field>
-        <Field label="Parent's mobile" required={publicForm} hint="Father, mother or guardian">
-          <PhoneInput value={value.parentPhone} onChange={(v) => set("parentPhone", v)} />
-        </Field>
-        <Field label="Emergency contact number" required={publicForm} hint="Who to call in an emergency">
-          <PhoneInput value={value.emergencyPhone} onChange={(v) => set("emergencyPhone", v)} />
-        </Field>
-        <Field label="Nationality" required>
-          <Input value={value.nationality} onChange={(e) => set("nationality", letters(e.target.value))} />
+        {/* One number: the parent's mobile is also the emergency contact. */}
+        <Field label="Parent / emergency contact" required={publicForm} hint="Father, mother or guardian — called in an emergency">
+          <PhoneInput value={value.parentPhone} onChange={(v) => onChange({ ...value, parentPhone: v, emergencyPhone: v })} />
         </Field>
         {emailOtp ? (
           <EmailOtpField value={value.email} onChange={(v) => set("email", v)} otp={emailOtp} className="sm:col-span-2 lg:col-span-3" />
