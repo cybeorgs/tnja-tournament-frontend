@@ -5,7 +5,7 @@ import { Camera, CheckCircle2, Info, Loader2, RefreshCw, X } from "lucide-react"
 import { cx } from "./ui";
 import { errorMessage } from "./Toast";
 
-/** Passport photo: 35 × 45 mm. Saved at 420 × 540 px, which prints sharp on the hall ticket and stays small. */
+/** Passport photo: 35 × 45 mm. Saved at 420 × 540 px, which prints sharp on the Tournament Entry Pass and stays small. */
 const OUT_W = 420;
 const OUT_H = 540;
 
@@ -115,7 +115,7 @@ export function PhotoUpload({ value, onChange, invalid }: { value: string; onCha
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-xs text-slate-500">It is printed on your hall ticket and checked at the venue. A photo that doesn&apos;t meet these rules may be rejected.</p>
+        <p className="mt-2 text-xs text-slate-500">It is printed on your Tournament Entry Pass and checked at the venue. A photo that doesn&apos;t meet these rules may be rejected.</p>
         {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
       </div>
     </div>

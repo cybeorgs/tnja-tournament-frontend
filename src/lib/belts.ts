@@ -1,6 +1,6 @@
 /**
  * Judo grades, lowest to highest: the kyu (coloured) belts, then the dan grades. `value` is what is
- * saved on the student (and printed on the hall ticket); the plain colours keep the values used
+ * saved on the student (and printed on the Tournament Entry Pass); the plain colours keep the values used
  * before ("White", "Yellow", …) so existing students still match.
  */
 export interface Belt {

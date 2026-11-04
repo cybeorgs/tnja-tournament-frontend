@@ -125,7 +125,7 @@ export interface Student {
   grade: string;
   degreeDepartment: string;
   coachName: string;
-  /** Additional details, printed on the hall ticket */
+  /** Additional details, printed on the Tournament Entry Pass */
   weightKg: number | null;
   managerName: string;
   districtPresident: string;
@@ -163,6 +163,7 @@ export interface Registration {
   paymentMode: string | null;
   amountPaid: number;
   paidAt: string | null;
+  /** The event's Tournament Entry Pass was emailed */
   hallTicketSentAt: string | null;
   createdAt: string;
   student: Student;

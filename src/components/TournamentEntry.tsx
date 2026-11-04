@@ -166,14 +166,14 @@ export function EventsPicker({ eligible, age, gender, lockGender, value, onChang
   );
 }
 
-/** Save the hall ticket using the pay token (the player isn't logged in on this screen). */
-async function downloadHallTicket(payToken: string, studentNo: string) {
-  const res = await fetch(`${API_BASE}/public/payments/hall-ticket`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payToken }) });
-  if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error || "Couldn't download the hall ticket.");
+/** Save one event's Tournament Entry Pass using the pay token (the player isn't logged in on this screen). */
+async function downloadEntryPass(payToken: string, entry: Entry, studentNo: string) {
+  const res = await fetch(`${API_BASE}/public/payments/entry-pass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payToken, registrationId: entry.id }) });
+  if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error || "Couldn't download the entry pass.");
   const url = URL.createObjectURL(new Blob([await res.blob()], { type: "application/pdf" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Hall_ticket_${studentNo}.pdf`;
+  a.download = `Entry_Pass_${studentNo}_${entry.ageGroup}_${entry.weightCategory}.pdf`.replace(/[^A-Za-z0-9._-]+/g, "_");
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -182,7 +182,7 @@ async function downloadHallTicket(payToken: string, studentNo: string) {
 
 /**
  * "You're in": the events entered, then paying the entry fee right here (or later from the student
- * login), then the hall ticket.
+ * login), then a Tournament Entry Pass for each event.
  */
 export function EntryDone({ name, studentNo, entries: initial, tournament, note, payToken }: {
   name: string; studentNo: string; entries: Entry[]; tournament: Tournament; note?: React.ReactNode;
@@ -190,7 +190,7 @@ export function EntryDone({ name, studentNo, entries: initial, tournament, note,
   payToken?: string | null;
 }) {
   const [entries, setEntries] = useState(initial);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState("");
   const due = entries.filter((e) => e.paymentStatus === "PENDING").reduce((n, e) => n + e.fee, 0);
   const paidNow = !due && entries.some((e) => e.paymentStatus === "PAID");
@@ -227,8 +227,8 @@ export function EntryDone({ name, studentNo, entries: initial, tournament, note,
 
       {due > 0 && (
         <div className="mt-5 rounded-2xl border border-orange-200 bg-brand-soft/60 p-4">
-          <p className="text-sm font-bold text-slate-900">Pay the entry fee to get your hall ticket</p>
-          <p className="mb-3 mt-0.5 text-xs text-slate-600">Your hall ticket is emailed as soon as the payment goes through.</p>
+          <p className="text-sm font-bold text-slate-900">Pay the entry fee to get your Tournament Entry Passes</p>
+          <p className="mb-3 mt-0.5 text-xs text-slate-600">Each event gets its own entry pass, emailed as a PDF as soon as the payment goes through.</p>
           {payToken ? (
             <PayNow
               amount={due}
@@ -247,36 +247,43 @@ export function EntryDone({ name, studentNo, entries: initial, tournament, note,
         </div>
       )}
 
-      {paidNow && (
-        <div className="animate-pop-in mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-center">
-          <p className="flex items-center justify-center gap-2 text-sm font-bold text-emerald-800"><Ticket size={16} /> Payment received — your hall ticket is ready</p>
-          <p className="mt-0.5 text-xs text-emerald-700">We&apos;ve emailed it to you. Print it on A4 and bring it to the weigh-in.</p>
+      {!due && (
+        <div className="animate-pop-in mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+          <p className="flex items-center justify-center gap-2 text-center text-sm font-bold text-emerald-800">
+            <Ticket size={16} /> {paidNow ? "Payment received — " : "Free entry — "}your Tournament Entry Pass{entries.length > 1 ? "es are" : " is"} ready
+          </p>
+          <p className="mt-0.5 text-center text-xs text-emerald-700">
+            We&apos;ve emailed {entries.length > 1 ? "one PDF for each event" : "it to you"}. Print {entries.length > 1 ? "each" : "it"} on A4 and bring {entries.length > 1 ? "them" : "it"} to the weigh-in.
+          </p>
           {payToken && (
-            <Button
-              className="mt-3 w-full"
-              icon={<Download size={16} />}
-              loading={downloading}
-              onClick={async () => {
-                setDownloadError("");
-                setDownloading(true);
-                try {
-                  await downloadHallTicket(payToken, studentNo);
-                } catch (err) {
-                  setDownloadError(errorMessage(err));
-                } finally {
-                  setDownloading(false);
-                }
-              }}
-            >
-              Download hall ticket
-            </Button>
+            <ul className="mt-3 space-y-2">
+              {entries.map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-emerald-100">
+                  <span className="min-w-0 truncate text-slate-700">{e.ageGroup} · {e.weightCategory}</span>
+                  <Button
+                    size="sm"
+                    icon={<Download size={14} />}
+                    loading={downloading === e.id}
+                    onClick={async () => {
+                      setDownloadError("");
+                      setDownloading(e.id);
+                      try {
+                        await downloadEntryPass(payToken, e, studentNo);
+                      } catch (err) {
+                        setDownloadError(errorMessage(err));
+                      } finally {
+                        setDownloading(null);
+                      }
+                    }}
+                  >
+                    Entry pass
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
-          {downloadError && <p className="mt-2 text-xs font-medium text-red-600">{downloadError}</p>}
+          {downloadError && <p className="mt-2 text-center text-xs font-medium text-red-600">{downloadError}</p>}
         </div>
-      )}
-
-      {!due && !paidNow && (
-        <p className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-800">Free entry — your hall ticket has been emailed to you.</p>
       )}
 
       {note && <div className="mt-4 text-center text-xs text-slate-500">{note}</div>}

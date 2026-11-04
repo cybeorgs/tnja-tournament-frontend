@@ -24,7 +24,7 @@ export type StudentInput = {
   annualIncome: string; isBPL: boolean;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
   club: string; coachName: string; belt: string;
-  /** Additional details (printed on the hall ticket); weight in kg as typed */
+  /** Additional details (printed on the Tournament Entry Pass); weight in kg as typed */
   weightKg: string; managerName: string; districtPresident: string; districtSecretary: string;
 };
 

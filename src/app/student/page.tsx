@@ -145,15 +145,15 @@ const WEIGH_IN = {
   DISQUALIFIED: { label: "Disqualified at weigh-in", color: "red" },
 } as const;
 
-/** One tournament's entries (events) for a student, with what each one owes and the hall ticket once paid. */
+/** One tournament's entries (events) for a student: what each one owes, and each event's Tournament Entry Pass once paid. */
 function TournamentEntries({ student, tournament, entries, onChanged }: { student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[]; onChanged: () => void }) {
   const toast = useToast();
-  const ready = entries.every((r) => r.paymentStatus !== "PENDING");
   const due = entries.filter((r) => r.paymentStatus === "PENDING").reduce((n, r) => n + r.fee, 0);
   const canPay = tournament.status !== "COMPLETED" && new Date(tournament.startDate) > new Date();
   const payPath = `/student/students/${student.id}/tournaments/${tournament.id}/pay`;
-  const hallTicket = (mode: "view" | "download") =>
-    studentPdf(`/student/students/${student.id}/hall-tickets/${tournament.id}`, mode, `Hall_ticket_${student.studentNo ?? student.fullName}.pdf`).catch((err) => toast(errorMessage(err), false));
+  const entryPass = (r: MyRegistration, mode: "view" | "download") =>
+    studentPdf(`/student/students/${student.id}/entries/${r.id}/entry-pass`, mode, `Entry_Pass_${student.studentNo ?? student.fullName}_${r.ageGroup}_${r.weightCategory}.pdf`).catch((err) => toast(errorMessage(err), false));
+  const anyPass = entries.some((r) => r.paymentStatus !== "PENDING");
   return (
     <li className="px-5 py-3 text-sm">
       <div className="min-w-0">
@@ -162,30 +162,35 @@ function TournamentEntries({ student, tournament, entries, onChanged }: { studen
       </div>
       <ul className="mt-2 space-y-1.5">
         {entries.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
-            <span className="text-slate-700">{r.ageGroup} · {r.weightCategory}</span>
-            <span className="flex items-center gap-1.5">
-              <Badge color="green">Registered</Badge>
-              <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
-              <Badge color={WEIGH_IN[r.weighInStatus].color}>{WEIGH_IN[r.weighInStatus].label}</Badge>
-            </span>
+          <li key={r.id} className="rounded-lg bg-slate-50 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-slate-700">{r.ageGroup} · {r.weightCategory}</span>
+              <span className="flex flex-wrap items-center gap-1.5">
+                <Badge color="green">Registered</Badge>
+                <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
+                <Badge color={WEIGH_IN[r.weighInStatus].color}>{WEIGH_IN[r.weighInStatus].label}</Badge>
+              </span>
+            </div>
+            {r.paymentStatus !== "PENDING" && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-2">
+                <Ticket size={14} className="shrink-0 text-emerald-600" />
+                <span className="min-w-0 flex-1 text-xs font-medium text-emerald-800">Tournament Entry Pass ready</span>
+                <Button size="sm" variant="secondary" icon={<Eye size={13} />} onClick={() => entryPass(r, "view")}>View</Button>
+                <Button size="sm" icon={<Download size={13} />} onClick={() => entryPass(r, "download")}>Download</Button>
+              </div>
+            )}
           </li>
         ))}
       </ul>
-      {ready ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
-          <Ticket size={16} className="shrink-0 text-emerald-600" />
-          <span className="min-w-0 flex-1 text-sm font-medium text-emerald-900">Hall ticket ready — print it on A4 and bring it to the weigh-in</span>
-          <Button size="sm" variant="secondary" icon={<Eye size={14} />} onClick={() => hallTicket("view")}>View</Button>
-          <Button size="sm" icon={<Download size={14} />} onClick={() => hallTicket("download")}>Download</Button>
-        </div>
+      {due === 0 ? (
+        anyPass && <p className="mt-2 text-xs text-slate-500">Each event has its own Tournament Entry Pass — print each on A4 and bring it to the weigh-in.</p>
       ) : (
         <div className="mt-2 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3 sm:flex-row sm:items-center">
           <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-amber-900">
             <Ticket size={16} className="mt-0.5 shrink-0" />
             <span>
               <span className="font-semibold">Entry fee due: {rupees(due)}</span>
-              <span className="block text-xs text-amber-800">{canPay ? "Pay now to get your hall ticket by email." : "The tournament has started — please contact the organiser."}</span>
+              <span className="block text-xs text-amber-800">{canPay ? "Pay now to get a Tournament Entry Pass for each event by email." : "The tournament has started — please contact the organiser."}</span>
             </span>
           </p>
           {canPay && (
@@ -195,7 +200,7 @@ function TournamentEntries({ student, tournament, entries, onChanged }: { studen
               createOrder={() => studentApi(payPath, { method: "POST" })}
               verify={(result) => studentApi(`${payPath}/verify`, { body: result })}
               onPaid={() => {
-                toast("Payment received. Your hall ticket has been emailed.");
+                toast("Payment received. Your Tournament Entry Passes have been emailed.");
                 onChanged();
               }}
               className="shrink-0"

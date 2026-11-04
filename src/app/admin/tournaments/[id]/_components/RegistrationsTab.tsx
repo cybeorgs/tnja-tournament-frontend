@@ -82,19 +82,15 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     }
   }
 
-  /** Students whose entries are all paid (or free): they have a hall ticket. */
-  const ticketReady = useMemo(() => {
-    const unpaid = new Set(all.filter((r) => r.paymentStatus === "PENDING").map((r) => r.studentId));
-    return new Set(all.map((r) => r.studentId).filter((id) => !unpaid.has(id)));
-  }, [all]);
-  const hallTicket = (r: Registration) =>
-    openPdf(`/tournaments/${tournament.id}/hall-tickets/${r.studentId}`, "view", `Hall_ticket_${r.student.fullName}.pdf`).catch((err) => toast(errorMessage(err), false));
+  /** Each paid (or free) event has its own Tournament Entry Pass. */
+  const entryPass = (r: Registration) =>
+    openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/entry-pass`, "view", `Entry_Pass_${r.student.fullName}_${r.ageGroup}.pdf`).catch((err) => toast(errorMessage(err), false));
 
   async function setPayment(r: Registration, status: "PAID" | "PENDING") {
     setBusy(true);
     try {
       await api(`/tournaments/${tournament.id}/registrations/${r.id}/payment`, { method: "PATCH", body: { status, mode: payMode } });
-      toast(status === "PAID" ? "Payment recorded. The hall ticket is emailed once all of the student's entries are paid." : "Marked unpaid.");
+      toast(status === "PAID" ? "Payment recorded. The Tournament Entry Pass for this event has been emailed." : "Marked unpaid.");
       setPaying(null);
       refresh();
     } catch (err) {
@@ -201,7 +197,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       <IconButton label="Edit category" onClick={() => setEditing(r)}><Pencil size={15} /></IconButton>
-                      {ticketReady.has(r.studentId) && <IconButton label="Hall ticket" onClick={() => hallTicket(r)}><Ticket size={15} /></IconButton>}
+                      {r.paymentStatus !== "PENDING" && <IconButton label="Tournament Entry Pass" onClick={() => entryPass(r)}><Ticket size={15} /></IconButton>}
                       <IconButton label="View certificate" onClick={() => certificate(r, "view")}><Eye size={15} /></IconButton>
                       <IconButton label="Download certificate" onClick={() => certificate(r, "download")}><Download size={15} /></IconButton>
                       <IconButton label="Remove entry" danger onClick={() => setRemoving(r)}><Trash2 size={15} /></IconButton>
@@ -252,7 +248,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
             </button>
           ))}
         </div>
-        <p className="mt-3 text-xs text-slate-500">For payments taken outside the website. Once all of this student&apos;s entries are paid, their hall ticket is emailed.</p>
+        <p className="mt-3 text-xs text-slate-500">For payments taken outside the website. The Tournament Entry Pass for this event is then emailed to the student.</p>
       </Modal>
 
       <Modal
