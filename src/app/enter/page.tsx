@@ -71,6 +71,12 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
   const eligible = meta && dobValid ? eligibleAgeGroups(meta, student.dob, tournament.startDate, tournament.ageGroups) : [];
   // Applicants outside Tamil Nadu wait for approval first, then choose their events by logging in.
   const asksEvents = !student.outsideTamilNadu;
+  // One weight: the events picker shows (and edits) the weight from Additional details.
+  const eventsValue: EventsValue = { ...events, weight: student.weightKg };
+  const changeEvents = (v: EventsValue) => {
+    setEvents(v);
+    if (v.weight !== student.weightKg) setStudent((s) => ({ ...s, weightKg: v.weight }));
+  };
 
   /** The pincode decides the rest of the form: Tamil Nadu (BPL question) or elsewhere (proof of nativity). */
   function startWith(match: PincodeMatch) {
@@ -91,10 +97,10 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
     const problem =
       validateStudent(s) ??
       validateDocs(s, docs) ??
-      (needAadhaarCheck && !digilocker.tokenFor(s.aadhaarNumber, s.residingPincode) ? "Please verify your Aadhaar with DigiLocker." : null) ??
+      (needAadhaarCheck && !digilocker.tokenFor(s.aadhaarNumber, s.residingPincode, s.dob) ? "Please verify your Aadhaar with DigiLocker (it checks your pincode and date of birth)." : null) ??
       (!emailOtp.tokenFor(s.email) ? "Please verify your email — click Verify and enter the code we send." : null) ??
       (asksEvents && age !== null && !eligible.length ? "There is no event in this tournament for your age." : null) ??
-      (asksEvents ? eventsProblem(events, eligible, s.gender === "OTHER" && !lockGender) : null) ??
+      (asksEvents ? eventsProblem(eventsValue, eligible, s.gender === "OTHER" && !lockGender) : null) ??
       (!agreed ? "Please confirm the details are correct." : null);
     setError(problem ?? "");
     if (problem) return;
@@ -106,14 +112,15 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
           ...s,
           agreedToTerms: true,
           emailVerificationToken: emailOtp.tokenFor(s.email),
-          aadhaarVerificationToken: digilocker.tokenFor(s.aadhaarNumber, s.residingPincode) ?? undefined,
+          aadhaarVerificationToken: digilocker.tokenFor(s.aadhaarNumber, s.residingPincode, s.dob) ?? undefined,
+          photo: docs.photo,
           ...(s.outsideTamilNadu ? { nativityProof: docs.nativityProof, nativityProofLabel: docs.nativityProofLabel } : s.isBPL ? { bplProof: docs.bplProof } : {}),
           ...(asksEvents
             ? {
                 entry: {
                   slug: tournament.slug,
                   ageGroups: events.ageGroups.filter((g) => eligible.includes(g)),
-                  weightKg: parseFloat(events.weight),
+                  weightKg: parseFloat(s.weightKg),
                   competeAs: s.gender === "OTHER" ? lockGender ?? events.competeAs : undefined,
                 },
               }
@@ -149,7 +156,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
               <StudentFields value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} digilocker={needAadhaarCheck ? digilocker : undefined} docs={docs} onDocsChange={setDocs} />
               <div className="mt-8">
                 {asksEvents ? (
-                  <EventsPicker eligible={eligible} age={age} gender={student.gender} lockGender={lockGender} value={events} onChange={setEvents} />
+                  <EventsPicker eligible={eligible} age={age} gender={student.gender} lockGender={lockGender} value={eventsValue} onChange={changeEvents} />
                 ) : (
                   <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                     <span className="font-semibold text-slate-800">Events:</span> because you live outside Tamil Nadu, your registration is checked first. Once it&apos;s approved, log in to choose the events you will play.
@@ -173,7 +180,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
               studentNo={step.studentNo}
               entries={step.entries}
               tournament={tournament}
-              note={<span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-slate-600"><Mail size={14} className="text-brand" /> We&apos;ve emailed your username{step.newAccount ? ", password" : ""} and registration PDF</span>}
+              note={<span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1.5 text-slate-600"><Mail size={14} className="text-brand" /> We&apos;ve emailed your username{step.newAccount ? ", password" : ""} and registration PDF{step.entries.every((e) => e.paymentStatus !== "PENDING") ? ", and your hall ticket" : ". Your hall ticket is emailed after payment."}</span>}
             />
           )}
 

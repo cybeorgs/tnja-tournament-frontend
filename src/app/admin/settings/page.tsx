@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { ImagePlus, KeyRound, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useSettings } from "@/lib/hooks";
 import type { Settings } from "@/lib/types";
@@ -12,7 +12,7 @@ import { errorMessage, useToast } from "@/components/Toast";
 type SettingsForm = Omit<Settings, "hasLogo" | "customLogo" | "updatedAt">;
 
 const toForm = (s: Settings): SettingsForm => ({
-  orgName: s.orgName, orgShortName: s.orgShortName, tagline: s.tagline,
+  orgName: s.orgName, orgShortName: s.orgShortName, tagline: s.tagline, regNo: s.regNo ?? "",
   signatory1Name: s.signatory1Name, signatory1Title: s.signatory1Title,
   signatory2Name: s.signatory2Name, signatory2Title: s.signatory2Title,
 });
@@ -102,9 +102,14 @@ export default function SettingsPage() {
             <Field label="Organisation name"><Input value={form.orgName} onChange={(e) => set("orgName", e.target.value)} required /></Field>
             <Field label="Short name" hint="Also prefixes certificate numbers"><Input value={form.orgShortName} onChange={(e) => set("orgShortName", e.target.value)} required maxLength={20} /></Field>
           </div>
-          <Field label="Tagline" hint="Shown under the name on certificates, e.g. affiliation">
-            <Input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+            <Field label="Tagline" hint="Shown under the name on certificates, e.g. affiliation">
+              <Input value={form.tagline} onChange={(e) => set("tagline", e.target.value)} />
+            </Field>
+            <Field label="Registration no." hint="Shown as “Reg. No.” on the site and every PDF">
+              <Input value={form.regNo} onChange={(e) => set("regNo", e.target.value)} placeholder="329-2017" maxLength={40} />
+            </Field>
+          </div>
           <h2 className="pt-2 text-sm font-bold text-slate-800">Certificate signatories</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Left — name"><Input value={form.signatory1Name} onChange={(e) => set("signatory1Name", e.target.value)} /></Field>
@@ -117,46 +122,6 @@ export default function SettingsPage() {
           </div>
         </form>
       </Card>
-
-      <PasswordCard />
     </div>
-  );
-}
-
-function PasswordCard() {
-  const toast = useToast();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (next.length < 8) return toast("New password must be at least 8 characters.", false);
-    if (next !== confirm) return toast("The new passwords don't match.", false);
-    setSaving(true);
-    try {
-      await api("/auth/change-password", { body: { currentPassword: current, newPassword: next } });
-      toast("Password changed.");
-      setCurrent(""); setNext(""); setConfirm("");
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Card className="p-5 sm:p-6">
-      <form onSubmit={submit} className="space-y-4">
-        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800"><KeyRound size={16} /> Change password</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Current password"><Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></Field>
-          <Field label="New password"><Input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required /></Field>
-          <Field label="Repeat new password"><Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></Field>
-        </div>
-        <div className="flex justify-end"><Button type="submit" variant="secondary" loading={saving}>Change password</Button></div>
-      </form>
-    </Card>
   );
 }

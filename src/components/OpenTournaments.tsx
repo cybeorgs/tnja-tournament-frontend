@@ -5,17 +5,18 @@ import { useApi, useNow } from "@/lib/hooks";
 import { formatDateRange, formatDateTime, titleCase } from "@/lib/format";
 import { registrationPhase, type Tournament } from "@/lib/types";
 import { Badge, Card, EmptyState, Spinner } from "./ui";
+import { feeLabel } from "./Payment";
 
 /**
- * Published tournaments that can be signed up for right now, by their schedule: students during
- * regular or late registration; officials any time before the start. The list updates on its own.
+ * Published tournaments that can be signed up for right now, by their schedule: students while
+ * registration is open; officials any time before the start. The list updates on its own.
  */
 export function useOpenTournaments(forOfficials = false) {
   const { data, loading, error } = useApi<Tournament[]>("/public/tournaments");
   const now = useNow();
   const open = (t: Tournament) => {
     const phase = registrationPhase(t, now);
-    return forOfficials ? phase !== "CLOSED" : phase === "OPEN" || phase === "LATE";
+    return forOfficials ? phase !== "CLOSED" : phase === "OPEN";
   };
   return { tournaments: (data ?? []).filter((t) => t.status === "PUBLISHED" && open(t)), loading, error };
 }
@@ -28,14 +29,13 @@ export function TournamentSummary({ tournament: t, showClosing = true }: { tourn
       <div className="mb-1.5 flex flex-wrap gap-1.5">
         <Badge color="orange">{titleCase(t.level)}</Badge>
         {t.gender !== "BOTH" && <Badge>{t.gender === "MALE" ? "Boys" : "Girls"}</Badge>}
-        {phase === "LATE" && <Badge color="red">Late registration</Badge>}
       </div>
       <p className="font-bold text-slate-900">{t.title}</p>
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-500">
         <span className="flex items-center gap-1.5"><CalendarDays size={14} /> {formatDateRange(t.startDate, t.endDate)}</span>
         <span className="flex items-center gap-1.5"><MapPin size={14} /> {[t.venue, t.city].filter(Boolean).join(", ")}</span>
-        {showClosing && (phase === "OPEN" || phase === "LATE") && (
-          <span className="text-xs">Free · register until {formatDateTime(phase === "LATE" ? t.startDate : t.registrationClosesAt)}</span>
+        {showClosing && phase === "OPEN" && (
+          <span className="text-xs">{feeLabel(t.entryFee)} · register until {formatDateTime(t.registrationClosesAt)}</span>
         )}
       </div>
     </>

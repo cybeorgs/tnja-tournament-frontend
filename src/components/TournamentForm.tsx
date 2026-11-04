@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMeta } from "@/lib/hooks";
-import { formatDateTime, fromLocalParts, titleCase, toDateInput, toLocalParts } from "@/lib/format";
+import { formatDateTime, fromLocalParts, rupees, titleCase, toDateInput, toLocalParts } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import { Button, DateInput, Field, Input, Select, Textarea, cx } from "./ui";
 
@@ -15,6 +15,8 @@ export type TournamentInput = Pick<Tournament, "title" | "description" | "venue"
   opensTime: string;
   closesDate: string;
   closesTime: string;
+  /** Rupees, as typed */
+  entryFee: string;
 };
 
 /** What the API takes: the start and the registration moments as ISO date-times. */
@@ -23,6 +25,7 @@ export type TournamentPayload = Pick<Tournament, "title" | "description" | "venu
   endDate: string | null;
   registrationOpensAt: string;
   registrationClosesAt: string;
+  entryFee: number;
 };
 
 const today = () => toLocalParts(new Date().toISOString()).date;
@@ -30,7 +33,7 @@ const today = () => toLocalParts(new Date().toISOString()).date;
 export const emptyTournament = (): TournamentInput => ({
   title: "", description: "", venue: "", city: "", startDate: "", startTime: "09:00", endDate: null,
   opensDate: today(), opensTime: "09:00", closesDate: "", closesTime: "23:59",
-  level: "STATE", gender: "BOTH", ageGroups: [],
+  level: "STATE", gender: "BOTH", ageGroups: [], entryFee: "",
 });
 
 export function fromTournament(t: Tournament): TournamentInput {
@@ -41,7 +44,7 @@ export function fromTournament(t: Tournament): TournamentInput {
     title: t.title, description: t.description, venue: t.venue, city: t.city,
     startDate: start.date, startTime: start.time, endDate: t.endDate ? toDateInput(t.endDate) : null,
     opensDate: opens.date, opensTime: opens.time, closesDate: closes.date, closesTime: closes.time,
-    level: t.level, gender: t.gender, ageGroups: t.ageGroups,
+    level: t.level, gender: t.gender, ageGroups: t.ageGroups, entryFee: String(t.entryFee ?? 0),
   };
 }
 
@@ -53,6 +56,7 @@ function toPayload(f: TournamentInput): TournamentPayload {
     endDate: f.endDate || null,
     registrationOpensAt: fromLocalParts(opensDate, opensTime),
     registrationClosesAt: fromLocalParts(closesDate, closesTime),
+    entryFee: Number(f.entryFee) || 0,
   };
 }
 
@@ -60,9 +64,10 @@ function toPayload(f: TournamentInput): TournamentPayload {
 function scheduleProblem(p: TournamentPayload): string | null {
   if (!p.startDate) return "Enter the tournament start date and time.";
   if (!p.registrationOpensAt) return "Enter when registration opens.";
-  if (!p.registrationClosesAt) return "Enter when regular registration closes.";
-  if (p.registrationOpensAt >= p.registrationClosesAt) return "Regular registration must close after it opens.";
-  if (p.registrationClosesAt > p.startDate) return "Regular registration must close before the tournament starts.";
+  if (!p.registrationClosesAt) return "Enter when registration closes.";
+  if (p.registrationOpensAt >= p.registrationClosesAt) return "Registration must close after it opens.";
+  if (p.registrationClosesAt > p.startDate) return "Registration must close before the tournament starts.";
+  if (!Number.isInteger(p.entryFee) || p.entryFee < 0) return "Enter the entry fee in whole rupees (0 for free).";
   return null;
 }
 
@@ -162,7 +167,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
               required
             />
           </Field>
-          <Field label="Start time" hint="Registration closes then">
+          <Field label="Start time">
             <Input type="time" value={form.startTime} onChange={(e) => set("startTime", e.target.value)} required />
           </Field>
           <Field label="Number of days">
@@ -207,7 +212,7 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
         <div className="grid gap-4 sm:grid-cols-2">
           <DateTimeField label="Registration opens" date={form.opensDate} time={form.opensTime} onDate={(v) => set("opensDate", v)} onTime={(v) => set("opensTime", v)} />
           <DateTimeField
-            label="Regular registration closes"
+            label="Registration closes"
             date={form.closesDate}
             time={form.closesTime}
             min={form.opensDate}
@@ -216,13 +221,27 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
             onTime={(v) => set("closesTime", v)}
           />
         </div>
+        <Field label="Entry fee" hint="Per entry: a student entering two age groups pays twice. 0 = free." className="sm:max-w-xs">
+          <div className="relative">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm font-semibold text-slate-400">₹</span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={form.entryFee}
+              onChange={(e) => set("entryFee", e.target.value)}
+              placeholder="0"
+              required
+              className="pl-8"
+            />
+          </div>
+        </Field>
         {!scheduleProblem(payload) && (
           <ol className="space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens (free)</li>
-            {payload.registrationClosesAt < payload.startDate && (
-              <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationClosesAt)}</span> — regular registration closes; late entries until the start</li>
-            )}
-            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.startDate)}</span> — tournament starts, registration closes</li>
+            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationOpensAt)}</span> — registration opens ({payload.entryFee > 0 ? `${rupees(payload.entryFee)} per entry` : "free"})</li>
+            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.registrationClosesAt)}</span> — registration closes (no late entries)</li>
+            <li><span className="font-semibold text-slate-800">{formatDateTime(payload.startDate)}</span> — tournament starts</li>
           </ol>
         )}
       </fieldset>

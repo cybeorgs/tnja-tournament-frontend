@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, GraduationCap, Home, Loader2, MapPin, Medal, UserRound, Wallet } from "lucide-react";
+import { Camera, Check, ClipboardList, GraduationCap, Home, Loader2, MapPin, Medal, UserRound, Wallet } from "lucide-react";
 import type { Gender, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, useLocations } from "@/lib/locations";
 import { DateInput, Field, Input, Select, cx } from "./ui";
 import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
+import { PhotoUpload } from "./PhotoUpload";
 import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
 
 /**
@@ -22,6 +23,8 @@ export type StudentInput = {
   annualIncome: string; isBPL: boolean;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
   club: string; coachName: string; belt: string;
+  /** Additional details (printed on the hall ticket); weight in kg as typed */
+  weightKg: string; managerName: string; districtPresident: string; districtSecretary: string;
 };
 
 export const emptyStudent: StudentInput = {
@@ -32,6 +35,7 @@ export const emptyStudent: StudentInput = {
   annualIncome: "", isBPL: false,
   institutionType: "SCHOOL", institutionName: "", grade: "", degreeDepartment: "",
   club: "", coachName: "", belt: "",
+  weightKg: "", managerName: "", districtPresident: "", districtSecretary: "",
 };
 
 export const fromStudent = (s: Student): StudentInput => ({
@@ -42,17 +46,22 @@ export const fromStudent = (s: Student): StudentInput => ({
   annualIncome: s.annualIncome === null ? "" : String(s.annualIncome), isBPL: s.isBPL,
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
   club: s.club, coachName: s.coachName, belt: s.belt,
+  weightKg: s.weightKg ? String(s.weightKg) : "", managerName: s.managerName ?? "", districtPresident: s.districtPresident ?? "", districtSecretary: s.districtSecretary ?? "",
 });
 
 const MOBILE = /^[6-9]\d{9}$/;
 const PINCODE = /^[1-9]\d{5}$/;
 
 /** Documents a student uploads when registering themselves (data: URLs). */
-export type StudentDocs = { bplProof: string; nativityProof: string; nativityProofLabel: string };
-export const emptyDocs: StudentDocs = { bplProof: "", nativityProof: "", nativityProofLabel: "Nativity certificate" };
+export type StudentDocs = { photo: string; bplProof: string; nativityProof: string; nativityProofLabel: string };
+export const emptyDocs: StudentDocs = { photo: "", bplProof: "", nativityProof: "", nativityProofLabel: "Nativity certificate" };
 
-/** What still has to be uploaded, or null. */
+/** What still has to be uploaded (or filled in) when registering themselves, or null. */
 export function validateDocs(f: StudentInput, d: StudentDocs): string | null {
+  if (!d.photo) return "Please upload a passport-size photograph.";
+  const kg = parseFloat(f.weightKg);
+  if (!kg) return "Please enter the player's weight (Additional details).";
+  if (kg < 10 || kg > 250) return "Check the player's weight (Additional details).";
   if (f.outsideTamilNadu && !d.nativityProof) return "Please upload a nativity certificate or other proof of where you live.";
   if (!f.outsideTamilNadu && f.isBPL && !d.bplProof) return "Please upload your BPL card or certificate.";
   return null;
@@ -75,6 +84,7 @@ export function validateStudent(f: StudentInput): string | null {
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
   if (f.alternatePhone && !MOBILE.test(f.alternatePhone)) return "Alternate mobile number isn't valid.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return "Enter a valid email address.";
+  if (f.weightKg && !(parseFloat(f.weightKg) >= 10 && parseFloat(f.weightKg) <= 250)) return "Weight must be between 10 and 250 kg.";
   return null;
 }
 
@@ -208,7 +218,7 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
           </Select>
         </Field>
         {digilocker ? (
-          <AadhaarDigilockerField value={value.aadhaarNumber} onChange={(v) => set("aadhaarNumber", v)} pincode={value.residingPincode} digilocker={digilocker} className="sm:col-span-2 lg:col-span-3" />
+          <AadhaarDigilockerField value={value.aadhaarNumber} onChange={(v) => set("aadhaarNumber", v)} pincode={value.residingPincode} dob={value.dob} digilocker={digilocker} className="sm:col-span-2 lg:col-span-3" />
         ) : (
           <Field label="Aadhaar number" required>
             <Input inputMode="numeric" placeholder="12 digits" value={value.aadhaarNumber} onChange={(e) => set("aadhaarNumber", digits(e.target.value, 12))} className="tracking-wide" />
@@ -231,6 +241,14 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
           </Field>
         )}
       </Section>
+
+      {docs && (
+        <Section icon={<Camera />} title="Photograph">
+          <div className="sm:col-span-2 lg:col-span-3">
+            <PhotoUpload value={docs.photo} onChange={(v) => setDoc("photo", v)} />
+          </div>
+        </Section>
+      )}
 
       <Section icon={<Home />} title="Permanent address">
         <Field label="Street address" required className="sm:col-span-2 lg:col-span-3">
@@ -290,12 +308,30 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         )}
       </Section>
 
-      <Section icon={<Medal />} title="Club & coach" optional>
+      <Section icon={<ClipboardList />} title="Additional details">
+        <Field label="Weight" required={!!docs} hint="Your current body weight">
+          <div className="relative">
+            <Input type="number" inputMode="decimal" min={10} max={250} step={0.1} value={value.weightKg} onChange={(e) => set("weightKg", e.target.value)} className="pr-12" />
+            <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-slate-400">kg</span>
+          </div>
+        </Field>
+        <Field label="Coach name">
+          <Input value={value.coachName} onChange={(e) => set("coachName", letters(e.target.value))} />
+        </Field>
+        <Field label="Manager name">
+          <Input value={value.managerName} onChange={(e) => set("managerName", letters(e.target.value))} />
+        </Field>
+        <Field label="District president">
+          <Input value={value.districtPresident} onChange={(e) => set("districtPresident", letters(e.target.value))} />
+        </Field>
+        <Field label="District secretary">
+          <Input value={value.districtSecretary} onChange={(e) => set("districtSecretary", letters(e.target.value))} />
+        </Field>
+      </Section>
+
+      <Section icon={<Medal />} title="Club & belt" optional>
         <Field label="Club / academy">
           <Input value={value.club} onChange={(e) => set("club", e.target.value)} />
-        </Field>
-        <Field label="Coach">
-          <Input value={value.coachName} onChange={(e) => set("coachName", letters(e.target.value))} />
         </Field>
         <Field label="Belt">
           <Select value={value.belt} onChange={(e) => set("belt", e.target.value)}>

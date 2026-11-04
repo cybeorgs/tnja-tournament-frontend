@@ -9,6 +9,7 @@ import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateRange, formatDateTime, titleCase } from "@/lib/format";
 import { DRAW_FORMAT_LABEL, registrationPhase, type Draw, type Tournament } from "@/lib/types";
 import { Badge, Button, Card, DateInput, EmptyState, Field, Input, Select, Spinner, cx } from "@/components/ui";
+import { feeLabel } from "@/components/Payment";
 import { Bracket } from "@/components/Bracket";
 import { PublicShell } from "@/components/PublicShell";
 import { errorMessage, useToast } from "@/components/Toast";
@@ -236,7 +237,7 @@ function CertificatesTab({ t }: { t: PublicDetail }) {
   );
 }
 
-/** Where registration stands right now (it follows the schedule and updates on its own), with a Register button. Registration is free. */
+/** Where registration stands right now (it follows the schedule and updates on its own), with a Register button. */
 function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
   const now = useNow();
   const phase = registrationPhase(t, now);
@@ -248,25 +249,17 @@ function RegistrationStatus({ tournament: t }: { tournament: Tournament }) {
         {phase === "NOT_OPEN" && (
           <>
             <p className="font-semibold text-slate-900">Registration opens on {formatDateTime(t.registrationOpensAt)}</p>
-            <p className="mt-0.5 text-slate-500">Registration is free. Regular registration runs until {formatDateTime(t.registrationClosesAt)}.</p>
+            <p className="mt-0.5 text-slate-500">{feeLabel(t.entryFee)}. Registration runs until {formatDateTime(t.registrationClosesAt)}.</p>
           </>
         )}
         {phase === "OPEN" && (
           <>
-            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><CheckCircle2 size={15} className="text-brand" /> Registration open — free</p>
-            <p className="mt-0.5 text-slate-500">Until {formatDateTime(t.registrationClosesAt)}, then late registration until the start.</p>
-          </>
-        )}
-        {phase === "LATE" && (
-          <>
-            <p className="flex items-center gap-1.5 font-semibold text-slate-900">
-              <Badge color="red">Late registration</Badge> Free
-            </p>
-            <p className="mt-0.5 text-slate-500">Open until the tournament starts on {formatDateTime(t.startDate)}.</p>
+            <p className="flex items-center gap-1.5 font-semibold text-slate-900"><CheckCircle2 size={15} className="text-brand" /> Registration open — {feeLabel(t.entryFee).toLowerCase()}</p>
+            <p className="mt-0.5 text-slate-500">Until {formatDateTime(t.registrationClosesAt)}. No late registration after that.</p>
           </>
         )}
       </div>
-      {(phase === "OPEN" || phase === "LATE") && (
+      {phase === "OPEN" && (
         <Link href={`/enter?t=${t.slug}`} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark">
           <Trophy size={16} /> Register
         </Link>

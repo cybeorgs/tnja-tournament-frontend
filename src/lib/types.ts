@@ -10,6 +10,8 @@ export interface Settings {
   orgName: string;
   orgShortName: string;
   tagline: string;
+  /** Society registration number, e.g. 329-2017: shown next to the name on the site and on every PDF */
+  regNo: string;
   signatory1Name: string;
   signatory1Title: string;
   signatory2Name: string;
@@ -37,13 +39,15 @@ export interface Tournament {
   description: string;
   venue: string;
   city: string;
-  /** Date and time the tournament starts; registration closes at this moment */
+  /** Date and time the tournament starts */
   startDate: string;
   endDate: string | null;
   /** Registration opens */
   registrationOpensAt: string;
-  /** Regular registration ends; late registration runs from here until the start */
+  /** Registration closes (there is no late registration) */
   registrationClosesAt: string;
+  /** Entry fee per entry (age group) in rupees; 0 = free */
+  entryFee: number;
   level: string;
   gender: "MALE" | "FEMALE" | "BOTH";
   ageGroups: string[];
@@ -68,8 +72,11 @@ export interface TournamentDetail extends Tournament {
     draws: number;
     concludedDraws: number;
     players: number;
-    regularEntries: number;
-    lateEntries: number;
+    /** Entries paid / still unpaid, and the amounts */
+    paidEntries: number;
+    unpaidEntries: number;
+    amountCollected: number;
+    amountDue: number;
     /** Entries whose weigh-in is cleared */
     weighedIn: number;
   };
@@ -112,6 +119,11 @@ export interface Student {
   grade: string;
   degreeDepartment: string;
   coachName: string;
+  /** Additional details, printed on the hall ticket */
+  weightKg: number | null;
+  managerName: string;
+  districtPresident: string;
+  districtSecretary: string;
   source: "SELF" | "ADMIN";
   createdAt: string;
   _count?: { registrations: number };
@@ -122,7 +134,7 @@ export interface StudentDetail extends Student {
   documents: { kind: DocumentKind; label: string; mime: string }[];
 }
 
-export type DocumentKind = "BPL_PROOF" | "NATIVITY_PROOF";
+export type DocumentKind = "PHOTO" | "BPL_PROOF" | "NATIVITY_PROOF";
 
 export interface Registration {
   id: string;
@@ -138,11 +150,20 @@ export interface Registration {
   weighedAt: string | null;
   placement: Placement | null;
   certificateNo: string | null;
-  /** Entered during late registration */
-  isLate: boolean;
+  /** Amount due (unpaid) or charged (paid), in rupees */
+  fee: number;
+  paymentStatus: PaymentStatus;
+  /** RAZORPAY (online) | CASH | UPI | OTHER, once paid */
+  paymentMode: string | null;
+  amountPaid: number;
+  paidAt: string | null;
+  hallTicketSentAt: string | null;
   createdAt: string;
   student: Student;
 }
+
+/** PENDING = unpaid · PAID · WAIVED = free tournament */
+export type PaymentStatus = "PENDING" | "PAID" | "WAIVED";
 
 export interface Referee {
   id: string;
@@ -264,20 +285,18 @@ export interface Paged<T> {
 
 /**
  * Registration runs on the tournament's schedule (the backend enforces the same rules):
- * NOT_OPEN before it opens · OPEN (regular) · LATE (late registration) until the start · CLOSED from the start.
- * Registration is free.
+ * NOT_OPEN before it opens · OPEN until registrationClosesAt · CLOSED from then on. There is no late registration.
  */
-export type RegistrationPhase = "NOT_OPEN" | "OPEN" | "LATE" | "CLOSED";
+export type RegistrationPhase = "NOT_OPEN" | "OPEN" | "CLOSED";
 
 type ScheduleFields = Pick<Tournament, "registrationOpensAt" | "registrationClosesAt" | "startDate" | "status">;
 
 export function registrationPhase(t: ScheduleFields, now = new Date()): RegistrationPhase {
-  if (t.status === "COMPLETED" || now >= new Date(t.startDate)) return "CLOSED";
-  if (now < new Date(t.registrationOpensAt)) return "NOT_OPEN";
-  return now < new Date(t.registrationClosesAt) ? "OPEN" : "LATE";
+  if (t.status === "COMPLETED" || now >= new Date(t.startDate) || now >= new Date(t.registrationClosesAt)) return "CLOSED";
+  return now < new Date(t.registrationOpensAt) ? "NOT_OPEN" : "OPEN";
 }
 
-/** The next moment the phase changes (open, regular close, start), so pages can update right then. */
+/** The next moment the phase changes (open, close, start), so pages can update right then. */
 export function nextPhaseChange(t: ScheduleFields, now = new Date()): Date | null {
   return [t.registrationOpensAt, t.registrationClosesAt, t.startDate].map((d) => new Date(d)).find((d) => d > now) ?? null;
 }

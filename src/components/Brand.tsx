@@ -4,6 +4,9 @@ import { API_BASE } from "@/lib/api";
 import type { Settings } from "@/lib/types";
 
 export const logoUrl = (settings: Settings) => `${API_BASE}/public/logo?v=${encodeURIComponent(settings.updatedAt)}`;
+/** "Reg. No. 329-2017", or "" when no number is set. */
+export const regNoLabel = (settings: Settings | null) => (settings?.regNo?.trim() ? `Reg. No. ${settings.regNo.trim()}` : "");
+
 /** The TNJA logo bundled with the site: shown while settings load and if the API has none */
 export const DEFAULT_LOGO = "/tnja-logo.jpeg";
 /** An uploaded logo, otherwise the TNJA logo */
@@ -18,6 +21,7 @@ export function Brand({ settings, compact }: { settings: Settings | null; compac
       <div className="min-w-0">
         <p className="truncate text-sm font-bold leading-tight text-slate-900">{settings?.orgShortName}</p>
         {!compact && <p className="truncate text-xs text-slate-500">{settings?.orgName || ""}</p>}
+        {!compact && regNoLabel(settings) && <p className="truncate text-[11px] font-semibold text-brand">{regNoLabel(settings)}</p>}
       </div>
     </div>
   );

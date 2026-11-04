@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Clock, KeyRound, LogOut, Trophy, XCircle } from "lucide-react";
-import { studentApi, studentAuth, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
+import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Ticket, Trophy, XCircle } from "lucide-react";
+import { studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
 import { formatDate, formatDateRange, titleCase } from "@/lib/format";
 import type { Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
+import { PaymentBadge } from "@/components/Payment";
 import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { TournamentEntry } from "@/components/TournamentEntry";
@@ -117,7 +118,7 @@ function StudentCard({ student: s, onEnter }: { student: MyStudent; onEnter: () 
       {byTournament.length > 0 && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {byTournament.map(({ tournament, entries }) => (
-            <TournamentEntries key={tournament.id} tournament={tournament} entries={entries} />
+            <TournamentEntries key={tournament.id} student={s} tournament={tournament} entries={entries} />
           ))}
         </ul>
       )}
@@ -142,8 +143,12 @@ const WEIGH_IN = {
   DISQUALIFIED: { label: "Disqualified at weigh-in", color: "red" },
 } as const;
 
-/** One tournament's entries (events) for a student. Registration is free, so every entry is confirmed. */
-function TournamentEntries({ tournament, entries }: { tournament: MyRegistration["tournament"]; entries: MyRegistration[] }) {
+/** One tournament's entries (events) for a student, with what each one owes and the hall ticket once paid. */
+function TournamentEntries({ student, tournament, entries }: { student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[] }) {
+  const toast = useToast();
+  const ready = entries.every((r) => r.paymentStatus !== "PENDING");
+  const hallTicket = (mode: "view" | "download") =>
+    studentPdf(`/student/students/${student.id}/hall-tickets/${tournament.id}`, mode, `Hall_ticket_${student.studentNo ?? student.fullName}.pdf`).catch((err) => toast(errorMessage(err), false));
   return (
     <li className="px-5 py-3 text-sm">
       <div className="min-w-0">
@@ -155,13 +160,25 @@ function TournamentEntries({ tournament, entries }: { tournament: MyRegistration
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
             <span className="text-slate-700">{r.ageGroup} · {r.weightCategory}</span>
             <span className="flex items-center gap-1.5">
-              {r.isLate && <Badge color="red">Late</Badge>}
               <Badge color="green">Registered</Badge>
+              <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
               <Badge color={WEIGH_IN[r.weighInStatus].color}>{WEIGH_IN[r.weighInStatus].label}</Badge>
             </span>
           </li>
         ))}
       </ul>
+      {ready ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+          <Ticket size={16} className="shrink-0 text-emerald-600" />
+          <span className="min-w-0 flex-1 text-sm font-medium text-emerald-900">Hall ticket ready — print it on A4 and bring it to the weigh-in</span>
+          <Button size="sm" variant="secondary" icon={<Eye size={14} />} onClick={() => hallTicket("view")}>View</Button>
+          <Button size="sm" icon={<Download size={14} />} onClick={() => hallTicket("download")}>Download</Button>
+        </div>
+      ) : (
+        <p className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <Ticket size={14} className="shrink-0" /> Your hall ticket is emailed and available here once the entry fee is paid.
+        </p>
+      )}
     </li>
   );
 }

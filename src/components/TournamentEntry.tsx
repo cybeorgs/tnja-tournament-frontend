@@ -6,16 +6,19 @@ import { Check, CheckCircle2, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { useMeta, useNow } from "@/lib/hooks";
 import { ownAgeGroup, weightClassFor } from "@/lib/categories";
-import { registrationPhase, type Gender, type StudentGender, type Tournament } from "@/lib/types";
+import { rupees } from "@/lib/format";
+import { registrationPhase, type Gender, type PaymentStatus, type StudentGender, type Tournament } from "@/lib/types";
+import { PaymentBadge } from "./Payment";
 import { Button, Field, Input, Select, Spinner, cx } from "./ui";
 import { errorMessage } from "./Toast";
 
-export interface Entry { id: string; ageGroup: string; gender: Gender; weightCategory: string; weightKg: number; isLate: boolean }
+export interface Entry { id: string; ageGroup: string; gender: Gender; weightCategory: string; weightKg: number; fee: number; paymentStatus: PaymentStatus }
 interface CheckResult {
   student: { studentNo: string; fullName: string; gender: StudentGender };
   genderAllowed: boolean;
   ageGroups: string[];
-  lateRegistration: boolean;
+  /** Charged per event (age group); 0 = free */
+  entryFee: number;
   entries: Entry[];
 }
 
@@ -166,15 +169,16 @@ export function EntryDone({ name, studentNo, entries, tournament, note }: { name
         <CheckCircle2 size={36} className="text-emerald-500" />
       </div>
       <p className="mt-4 text-lg font-bold text-slate-900">You&apos;re in, {name}!</p>
-      <p className="mt-1 text-sm text-slate-500">Registered in {entries.length} event{entries.length === 1 ? "" : "s"}. Registration is free — nothing to pay.</p>
+      <p className="mt-1 text-sm text-slate-500">Registered in {entries.length} event{entries.length === 1 ? "" : "s"}.</p>
       <ul className="mx-auto mt-3 max-w-xs space-y-1 text-sm text-slate-600">
         {entries.map((e) => (
           <li key={e.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
             <span>{e.ageGroup} · {e.weightCategory}</span>
-            <span className="text-xs font-semibold text-emerald-600">Confirmed</span>
+            <PaymentBadge status={e.paymentStatus} fee={e.fee} />
           </li>
         ))}
       </ul>
+      <PaymentDue entries={entries} />
       <p className="mt-4 text-xs text-slate-500">Student ID <span className="font-mono font-semibold text-brand">{studentNo}</span> · bring it to the weigh-in</p>
       {note && <div className="mt-3 text-xs text-slate-500">{note}</div>}
       <Link href={`/t/${tournament.slug}`} className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">View tournament</Link>
@@ -185,8 +189,8 @@ export function EntryDone({ name, studentNo, entries, tournament, note }: { name
 // ─── Returning player: enter more events ─────────────────────────────────────
 
 /**
- * A registered student (identified by ID + date of birth) chooses the events to enter. Free:
- * entries are confirmed straight away.
+ * A registered student (identified by ID + date of birth) chooses the events to enter. With an
+ * entry fee each event is unpaid until paid.
  */
 export function TournamentEntry({ tournament, studentNo, dob, banner }: { tournament: Tournament; studentNo: string; dob: string; banner?: React.ReactNode }) {
   const lockGender = tournament.gender === "BOTH" ? undefined : tournament.gender;
@@ -198,7 +202,7 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<Entry[] | null>(null);
-  // When registration moves to late registration (or closes) while the page is open, ask again.
+  // When registration closes while the page is open, ask again.
   const phase = registrationPhase(tournament, useNow(15_000));
 
   useEffect(() => {
@@ -256,9 +260,10 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         </div>
       </div>
 
-      {check.lateRegistration && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <span className="font-semibold">Late registration.</span> Open until the tournament starts.
+      {check.entryFee > 0 && (
+        <p className="rounded-xl border border-orange-200 bg-brand-soft px-4 py-3 text-sm text-slate-700">
+          Entry fee: <span className="font-semibold text-slate-900">{rupees(check.entryFee)} per event</span>
+          {fresh.length > 0 && <> · total <span className="font-semibold text-slate-900">{rupees(check.entryFee * fresh.length)}</span></>}
         </p>
       )}
 
@@ -278,6 +283,18 @@ export function TournamentEntry({ tournament, studentNo, dob, banner }: { tourna
         </>
       )}
     </form>
+  );
+}
+
+/** Amount still to pay for these entries. The online payment button is added with the payment step. */
+export function PaymentDue({ entries }: { entries: Entry[] }) {
+  const due = entries.filter((e) => e.paymentStatus === "PENDING").reduce((n, e) => n + e.fee, 0);
+  if (!due) return null;
+  return (
+    <div className="mx-auto mt-4 max-w-xs rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+      <p className="font-semibold">Entry fee due: {rupees(due)}</p>
+      <p className="mt-0.5 text-xs text-amber-800">Online payment will be available here soon. Your entries stay unpaid until then.</p>
+    </div>
   );
 }
 

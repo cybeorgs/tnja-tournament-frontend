@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CheckCircle2, Clock, FileText, XCircle } from "lucide-react";
 import { api, fetchObjectUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
 import type { StudentDetail as Detail } from "@/lib/types";
 import { Badge, Button, EmptyState, Modal, Spinner, Textarea } from "./ui";
+import { PaymentBadge } from "./Payment";
 import { errorMessage, useToast } from "./Toast";
 
 /** Read-only view of everything a student registered with, plus their tournament history. */
@@ -28,9 +29,13 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-soft to-white p-4">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-xl font-bold text-white shadow-sm shadow-orange-500/30">
-          {s.fullName.charAt(0).toUpperCase()}
-        </span>
+        {s.documents.some((d) => d.kind === "PHOTO") ? (
+          <StudentPhoto studentId={s.id} name={s.fullName} />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-xl font-bold text-white shadow-sm shadow-orange-500/30">
+            {s.fullName.charAt(0).toUpperCase()}
+          </span>
+        )}
         <div className="min-w-0">
           <p className="truncate text-lg font-bold text-slate-900">{s.fullName}</p>
           <p className="text-sm text-slate-500">{GENDER_LABEL[s.gender]} · {formatDate(s.dob)}</p>
@@ -78,8 +83,15 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
         <Item label="Institution" value={[s.institutionName, s.institutionType && titleCase(s.institutionType)].filter(Boolean).join(" · ")} />
         <Item label="Standard / year" value={[s.grade, s.degreeDepartment].filter(Boolean).join(" · ")} />
         <Item label="Club" value={s.club} />
-        <Item label="Coach" value={s.coachName} />
         <Item label="Belt" value={s.belt} />
+      </Group>
+
+      <Group title="Additional details">
+        <Item label="Weight" value={s.weightKg ? `${s.weightKg} kg` : ""} />
+        <Item label="Coach" value={s.coachName} />
+        <Item label="Manager" value={s.managerName} />
+        <Item label="District president" value={s.districtPresident} />
+        <Item label="District secretary" value={s.districtSecretary} />
       </Group>
 
       <Group title="Financial">
@@ -96,7 +108,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
                 <span className="font-medium text-slate-700">{r.tournament.title}</span>
                 <span className="flex items-center gap-2 text-slate-500">
                   {r.ageGroup} {r.weightCategory}
-                  <Badge color={r.isLate ? "yellow" : "green"}>{r.isLate ? "Late entry" : "Registered"}</Badge>
+                  <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
                 </span>
               </li>
             ))}
@@ -131,6 +143,30 @@ export function StatusBadge({ status }: { status: Detail["status"] }) {
   if (status === "PENDING") return <Badge color="yellow"><Clock size={11} /> Waiting for approval</Badge>;
   if (status === "REJECTED") return <Badge color="red"><XCircle size={11} /> Rejected</Badge>;
   return <Badge color="green"><CheckCircle2 size={11} /> Approved</Badge>;
+}
+
+/** The passport photo, loaded with the admin's login (it isn't public). */
+function StudentPhoto({ studentId, name }: { studentId: string; name: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let current: string | null = null;
+    let cancelled = false;
+    fetchObjectUrl(`/students/${studentId}/documents/PHOTO`).then((u) => {
+      if (cancelled) return URL.revokeObjectURL(u);
+      current = u;
+      setUrl(u);
+    }, () => {});
+    return () => {
+      cancelled = true;
+      if (current) URL.revokeObjectURL(current);
+    };
+  }, [studentId]);
+  return url ? (
+    // eslint-disable-next-line @next/next/no-img-element -- a blob: URL
+    <img src={url} alt={name} className="h-[4.5rem] w-14 shrink-0 rounded-lg object-cover shadow-sm ring-2 ring-white" />
+  ) : (
+    <span className="h-[4.5rem] w-14 shrink-0 animate-pulse rounded-lg bg-slate-200" />
+  );
 }
 
 function DocumentLink({ studentId, kind, label }: { studentId: string; kind: string; label: string }) {

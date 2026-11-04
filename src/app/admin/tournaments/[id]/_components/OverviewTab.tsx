@@ -4,11 +4,12 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, CheckCircle2, Circle, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatDateRange, formatDateTime, titleCase } from "@/lib/format";
+import { formatDateRange, formatDateTime, rupees, titleCase } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { registrationPhase, type RegistrationPhase, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, Field, Input, Modal } from "@/components/ui";
 import { TournamentForm, fromTournament } from "@/components/TournamentForm";
+import { feeLabel } from "@/components/Payment";
 import { errorMessage, useToast } from "@/components/Toast";
 
 type Tab = "overview" | "students" | "referees" | "draws" | "results" | "publish";
@@ -71,8 +72,8 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
           {[
             { label: "Registered players", value: s.players, sub: `${s.registrations} entries` },
             { label: "Entries per player", value: s.players ? (s.registrations / s.players).toFixed(1) : "0", sub: "Cadet / Junior / Senior…" },
-            { label: "Regular registrations", value: s.regularEntries, sub: "Before the regular deadline" },
-            { label: "Late registrations", value: s.lateEntries, sub: "After the regular deadline", tone: s.lateEntries ? "text-amber-600" : undefined },
+            { label: "Fees collected", value: rupees(s.amountCollected), sub: `${s.paidEntries} paid entr${s.paidEntries === 1 ? "y" : "ies"}`, tone: s.amountCollected ? "text-emerald-600" : undefined },
+            { label: "Fees due", value: rupees(s.amountDue), sub: `${s.unpaidEntries} unpaid entr${s.unpaidEntries === 1 ? "y" : "ies"}`, tone: s.amountDue ? "text-amber-600" : undefined },
             { label: "Weighed in", value: s.weighedIn, sub: `of ${s.registrations} entries`, tone: s.registrations && s.weighedIn === s.registrations ? "text-emerald-600" : undefined },
             { label: "Categories", value: s.categories, sub: `${s.draws} drawn` },
             { label: "Officials", value: s.referees, sub: `${tournament.numberOfMats} mat${tournament.numberOfMats === 1 ? "" : "s"}` },
@@ -129,17 +130,16 @@ export function OverviewTab({ tournament, onChange, goTo }: { tournament: Tourna
 }
 
 const GENDER_LABEL = { BOTH: "Boys and girls", MALE: "Boys / men only", FEMALE: "Girls / women only" } as const;
-const PHASE_LABEL: Record<RegistrationPhase, string> = { NOT_OPEN: "Not open yet", OPEN: "Open", LATE: "Late registration", CLOSED: "Closed" };
-const PHASE_COLOR = { NOT_OPEN: "slate", OPEN: "green", LATE: "red", CLOSED: "slate" } as const;
+const PHASE_LABEL: Record<RegistrationPhase, string> = { NOT_OPEN: "Not open yet", OPEN: "Open", CLOSED: "Closed" };
+const PHASE_COLOR = { NOT_OPEN: "slate", OPEN: "green", CLOSED: "slate" } as const;
 
 /** Read-only view of the tournament (Edit switches to the form), led by the live registration status. */
 function TournamentDetails({ tournament: t, onEditDates }: { tournament: TournamentDetail; onEditDates: () => void }) {
   const now = useNow();
   const phase = registrationPhase(t, now);
   const status: Record<RegistrationPhase, string> = {
-    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)}. Registration is free.`,
-    OPEN: `Free registration until ${formatDateTime(t.registrationClosesAt)}, then late entries until the start.`,
-    LATE: `Late entries until the tournament starts on ${formatDateTime(t.startDate)}.`,
+    NOT_OPEN: `Opens on ${formatDateTime(t.registrationOpensAt)}. ${feeLabel(t.entryFee)}.`,
+    OPEN: `${feeLabel(t.entryFee)} until ${formatDateTime(t.registrationClosesAt)}. No late entries after that.`,
     CLOSED: "No new entries.",
   };
 
@@ -163,8 +163,8 @@ function TournamentDetails({ tournament: t, onEditDates }: { tournament: Tournam
         <Detail label="Starts">{formatDateTime(t.startDate)}</Detail>
         <Detail label="Dates">{formatDateRange(t.startDate, t.endDate)}</Detail>
         <Detail label="Registration opens">{formatDateTime(t.registrationOpensAt)}</Detail>
-        <Detail label="Regular registration closes">{formatDateTime(t.registrationClosesAt)}</Detail>
-        <Detail label="Registration">Free</Detail>
+        <Detail label="Registration closes">{formatDateTime(t.registrationClosesAt)}</Detail>
+        <Detail label="Entry fee">{feeLabel(t.entryFee)}</Detail>
         <Detail label="Level">{titleCase(t.level)}</Detail>
         <Detail label="Open to">{GENDER_LABEL[t.gender]}</Detail>
         <Detail label="Age groups" wide>

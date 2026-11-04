@@ -28,7 +28,7 @@ export function Button({
         "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/20 active:scale-[0.97]",
         "disabled:pointer-events-none disabled:opacity-50",
-        size === "sm" ? "h-8 rounded-lg px-3 text-xs" : "h-10 rounded-xl px-4 text-sm",
+        size === "sm" ? "h-9 rounded-lg px-3 text-xs sm:h-8" : "h-11 rounded-xl px-4 text-sm sm:h-10",
         VARIANTS[variant],
         className,
       )}
@@ -60,7 +60,7 @@ export function Field({ label, hint, error, required, group, children, className
 }
 
 const inputClass = cx(
-  "h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm shadow-slate-900/[0.02] transition-[border-color,box-shadow,background-color] duration-150",
+  "h-12 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-base text-slate-900 sm:h-11 sm:text-sm shadow-sm shadow-slate-900/[0.02] transition-[border-color,box-shadow,background-color] duration-150",
   "placeholder:text-slate-400 hover:border-slate-300",
   "focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10",
   "aria-[invalid=true]:border-red-300 aria-[invalid=true]:focus:ring-red-500/10",
@@ -218,16 +218,17 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
         aria-modal="true"
         aria-label={title}
         onMouseDown={(e) => e.stopPropagation()}
-        className={cx("animate-pop-in flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl shadow-slate-900/20 sm:rounded-3xl", wide ? "sm:max-w-3xl" : "sm:max-w-lg")}
+        className={cx("animate-pop-in flex max-h-[92dvh] w-full flex-col rounded-t-3xl border-t-4 border-brand bg-white shadow-2xl shadow-slate-900/20 sm:rounded-3xl sm:border-t-0", wide ? "sm:max-w-3xl" : "sm:max-w-lg")}
       >
-        <div className="flex items-center justify-between gap-4 px-6 pb-3 pt-5">
+        <div className="mx-auto mt-2.5 h-1.5 w-12 shrink-0 rounded-full bg-slate-200 sm:hidden" aria-hidden />
+        <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-3 sm:px-6 sm:pt-5">
           <h2 className="text-lg font-bold text-slate-900">{title}</h2>
           <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto px-6 pb-5 pt-1">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4 sm:rounded-b-3xl">{footer}</div>}
+        <div className={cx("overflow-y-auto px-5 pt-1 sm:px-6 sm:pb-5", footer ? "pb-5" : "pb-[max(1.25rem,env(safe-area-inset-bottom))]")}>{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 max-sm:[&>*]:flex-1 sm:rounded-b-3xl sm:px-6 sm:pb-4">{footer}</div>}
       </div>
     </div>
   );
@@ -237,10 +238,10 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-        {subtitle && <div className="mt-1 text-sm text-slate-500">{subtitle}</div>}
+        <h1 className="border-l-4 border-brand pl-3 text-[1.6rem] font-extrabold leading-tight tracking-tight text-slate-900 sm:border-0 sm:pl-0 sm:text-2xl sm:font-bold">{title}</h1>
+        {subtitle && <div className="mt-1 pl-4 text-sm text-slate-500 sm:pl-0">{subtitle}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2 max-sm:[&>*]:flex-1">{actions}</div>}
     </div>
   );
 }

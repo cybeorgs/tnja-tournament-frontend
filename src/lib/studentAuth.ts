@@ -1,6 +1,7 @@
 "use client";
 
 import { API_BASE, ApiError } from "./api";
+import type { PaymentStatus } from "./types";
 
 const TOKEN_KEY = "student_token";
 
@@ -74,7 +75,39 @@ export interface MyRegistration {
   weightCategory: string;
   weightKg: number;
   placement: string | null;
-  isLate: boolean;
+  fee: number;
+  paymentStatus: PaymentStatus;
+  amountPaid: number;
+  paidAt: string | null;
   weighInStatus: "PENDING" | "CLEARED" | "DISQUALIFIED";
   tournament: { id: string; slug: string; title: string; startDate: string; endDate: string | null; venue: string; city: string; status: "PUBLISHED" | "COMPLETED" };
+}
+
+/** Open (or save) a PDF from a /student endpoint with the student's token. */
+export async function studentPdf(path: string, mode: "view" | "download", filename: string) {
+  // Open the tab inside the click handler so the popup blocker allows it.
+  const tab = mode === "view" ? window.open("", "_blank") : null;
+  try {
+    const token = studentAuth.getToken();
+    const res = await fetch(`${API_BASE}${path}?download=${mode === "download" ? 1 : 0}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new ApiError(res.status, (body && (body.error || body.message)) || `Request failed (${res.status})`);
+    }
+    const url = URL.createObjectURL(new Blob([await res.blob()], { type: "application/pdf" }));
+    if (tab) {
+      tab.location.href = url;
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename.replace(/[^A-Za-z0-9._-]+/g, "_");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
 }

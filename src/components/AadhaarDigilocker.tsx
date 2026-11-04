@@ -8,7 +8,8 @@ import { errorMessage } from "./Toast";
 
 // Aadhaar verification through DigiLocker (UIDAI discontinued the Aadhaar OTP API), with the same
 // call limits as the main TNJA site. DigiLocker opens in a popup so the half-filled form is kept.
-// The backend also checks that the pincode on the Aadhaar address matches the pincode entered.
+// The backend also checks that the pincode on the Aadhaar address and the date of birth on the
+// Aadhaar match the pincode and date of birth entered.
 //
 // Every check costs a Sandbox status call. The callback page announces when DigiLocker is done,
 // which triggers the one check that matters; the timer is only a safety net for browsers where that
@@ -26,6 +27,7 @@ export const DIGILOCKER_CHANNEL = "tnja-tournament-digilocker";
 
 const AADHAAR = /^[2-9]\d{11}$/;
 const PINCODE = /^[1-9]\d{5}$/;
+const DOB = /^\d{4}-\d{2}-\d{2}$/;
 
 type Status = "idle" | "starting" | "waiting" | "verified";
 type Session = { aadhaarNumber: string; token: string; startedAt: number };
@@ -35,9 +37,10 @@ export function useAadhaarDigilocker() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
-  const [verified, setVerified] = useState<{ aadhaar: string; pincode: string; token: string } | null>(null);
+  const [verified, setVerified] = useState<{ aadhaar: string; pincode: string; dob: string; token: string } | null>(null);
   const session = useRef<Session | null>(null);
   const pincodeRef = useRef("");
+  const dobRef = useRef("");
   const popup = useRef<Window | null>(null);
   const inFlight = useRef(false);
   const checkNowRef = useRef<() => void>(() => {});
@@ -51,11 +54,12 @@ export function useAadhaarDigilocker() {
     setStatus("idle");
   }, []);
 
-  async function start(aadhaarNumber: string, pincode: string) {
+  async function start(aadhaarNumber: string, pincode: string, dob: string) {
     // Each start is a paid Sandbox session: ignore double clicks and clicks while one is open.
     if (inFlight.current || session.current) return;
     if (!AADHAAR.test(aadhaarNumber)) return setError("Please enter a valid 12-digit Aadhaar number.");
     if (!PINCODE.test(pincode)) return setError("Please enter your 6-digit pincode first.");
+    if (!DOB.test(dob)) return setError("Please enter your date of birth first.");
     // Open the popup synchronously in the click handler so browsers don't block it.
     inFlight.current = true;
     popup.current = window.open("", "digilocker", "width=520,height=720");
@@ -63,9 +67,10 @@ export function useAadhaarDigilocker() {
     setError("");
     setVerified(null);
     try {
-      const data = await api<{ authorizationUrl: string; digilockerSessionToken: string }>("/public/aadhaar/digilocker/start", { body: { aadhaarNumber, pincode } });
+      const data = await api<{ authorizationUrl: string; digilockerSessionToken: string }>("/public/aadhaar/digilocker/start", { body: { aadhaarNumber, pincode, dob } });
       session.current = { aadhaarNumber, token: data.digilockerSessionToken, startedAt: Date.now() };
       pincodeRef.current = pincode;
+      dobRef.current = dob;
       setAuthorizationUrl(data.authorizationUrl);
       if (popup.current && !popup.current.closed) popup.current.location.href = data.authorizationUrl;
       setStatus("waiting");
@@ -101,7 +106,7 @@ export function useAadhaarDigilocker() {
         if (cancelled || session.current !== current) return;
         if (data.status === "verified") {
           stop("");
-          setVerified({ aadhaar: current.aadhaarNumber, pincode: pincodeRef.current, token: data.aadhaarVerificationToken });
+          setVerified({ aadhaar: current.aadhaarNumber, pincode: pincodeRef.current, dob: dobRef.current, token: data.aadhaarVerificationToken });
           setStatus("verified");
           return;
         }
@@ -155,8 +160,9 @@ export function useAadhaarDigilocker() {
     authorizationUrl,
     starting: status === "starting",
     waiting: status === "waiting",
-    /** Verification token for this Aadhaar number and pincode, or null if they aren't verified together */
-    tokenFor: (aadhaar: string, pincode: string) => (verified && verified.aadhaar === aadhaar && verified.pincode === pincode ? verified.token : null),
+    /** Verification token for this Aadhaar number, pincode and date of birth, or null if they aren't verified together */
+    tokenFor: (aadhaar: string, pincode: string, dob: string) =>
+      verified && verified.aadhaar === aadhaar && verified.pincode === pincode && verified.dob === dob ? verified.token : null,
     /** For "I've finished in DigiLocker": checks once now (rate limited) instead of waiting for the timer. */
     checkNow: () => checkNowRef.current(),
     cancel: () => stop(""),
@@ -166,15 +172,17 @@ export function useAadhaarDigilocker() {
 export type AadhaarDigilocker = ReturnType<typeof useAadhaarDigilocker>;
 
 /** Aadhaar number with a "Verify with DigiLocker" button. */
-export function AadhaarDigilockerField({ value, onChange, pincode, digilocker, className }: {
+export function AadhaarDigilockerField({ value, onChange, pincode, dob, digilocker, className }: {
   value: string;
   onChange: (v: string) => void;
   /** The residing pincode the Aadhaar address must match */
   pincode: string;
+  /** The date of birth (YYYY-MM-DD) the Aadhaar must match */
+  dob: string;
   digilocker: AadhaarDigilocker;
   className?: string;
 }) {
-  const verified = !!digilocker.tokenFor(value, pincode);
+  const verified = !!digilocker.tokenFor(value, pincode, dob);
   const busy = digilocker.starting || digilocker.waiting;
 
   return (
@@ -183,7 +191,7 @@ export function AadhaarDigilockerField({ value, onChange, pincode, digilocker, c
         label="Aadhaar number"
         required
         error={!busy ? digilocker.error || undefined : undefined}
-        hint={verified || busy ? undefined : "Verify with DigiLocker. The pincode on your Aadhaar must match the pincode above."}
+        hint={verified || busy ? undefined : DOB.test(dob) ? "Verify with DigiLocker. The pincode and date of birth on your Aadhaar must match the ones above." : "Enter your date of birth above, then verify with DigiLocker."}
       >
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -202,7 +210,7 @@ export function AadhaarDigilockerField({ value, onChange, pincode, digilocker, c
             )}
           </div>
           {!verified && !busy && (
-            <Button className="h-11 shrink-0" icon={<ShieldCheck size={15} />} disabled={!AADHAAR.test(value) || !PINCODE.test(pincode)} onClick={() => digilocker.start(value, pincode)}>
+            <Button className="h-11 shrink-0" icon={<ShieldCheck size={15} />} disabled={!AADHAAR.test(value) || !PINCODE.test(pincode) || !DOB.test(dob)} onClick={() => digilocker.start(value, pincode, dob)}>
               Verify
             </Button>
           )}

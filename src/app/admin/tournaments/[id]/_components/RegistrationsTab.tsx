@@ -1,16 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, FileSpreadsheet, Pencil, Plus, Trash2, Upload, Users } from "lucide-react";
+import { Download, Eye, FileSpreadsheet, IndianRupee, Pencil, Plus, Ticket, Trash2, Upload, Users } from "lucide-react";
 import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
-import { categoryLabel, formatDateTime } from "@/lib/format";
+import { categoryLabel, formatDateTime, rupees } from "@/lib/format";
 import { registrationPhase, type Registration, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Modal, Spinner } from "@/components/ui";
 import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
 import { ImportEntriesModal } from "./ImportEntriesModal";
+import { PaymentBadge } from "@/components/Payment";
 
 export function RegistrationsTab({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
   const toast = useToast();
@@ -18,11 +19,13 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
   const { filters, setFilters, active } = useFilters();
   const [editing, setEditing] = useState<Registration | null | "new">(null);
   const [removing, setRemoving] = useState<Registration | null>(null);
+  const [paying, setPaying] = useState<Registration | null>(null);
+  const [payMode, setPayMode] = useState<"CASH" | "UPI" | "OTHER">("CASH");
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const phase = registrationPhase(tournament, useNow());
-  const canAdd = phase === "OPEN" || phase === "LATE";
+  const canAdd = phase === "OPEN";
 
   const refresh = () => {
     reload();
@@ -79,6 +82,28 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     }
   }
 
+  /** Students whose entries are all paid (or free): they have a hall ticket. */
+  const ticketReady = useMemo(() => {
+    const unpaid = new Set(all.filter((r) => r.paymentStatus === "PENDING").map((r) => r.studentId));
+    return new Set(all.map((r) => r.studentId).filter((id) => !unpaid.has(id)));
+  }, [all]);
+  const hallTicket = (r: Registration) =>
+    openPdf(`/tournaments/${tournament.id}/hall-tickets/${r.studentId}`, "view", `Hall_ticket_${r.student.fullName}.pdf`).catch((err) => toast(errorMessage(err), false));
+
+  async function setPayment(r: Registration, status: "PAID" | "PENDING") {
+    setBusy(true);
+    try {
+      await api(`/tournaments/${tournament.id}/registrations/${r.id}/payment`, { method: "PATCH", body: { status, mode: payMode } });
+      toast(status === "PAID" ? "Payment recorded. The hall ticket is emailed once all of the student's entries are paid." : "Marked unpaid.");
+      setPaying(null);
+      refresh();
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const certificate = (r: Registration, mode: "view" | "download") =>
     openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/certificate`, mode, `${r.student.fullName}_certificate.pdf`).catch((err) => toast(errorMessage(err), false));
 
@@ -96,7 +121,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
           Import
         </Button>
         <Button icon={<Plus size={16} />} onClick={() => setEditing("new")} disabled={!canAdd} title={canAdd ? "" : "Registration isn't open — see the dates in Overview"}>
-          {phase === "LATE" ? "Late entry" : "Register student"}
+          Register student
         </Button>
         </div>
       </div>
@@ -111,16 +136,11 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
           searchPlaceholder="Search name, email, student ID, club or phone"
         />
       )}
-      {phase === "LATE" && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          Late registration until {formatDateTime(tournament.startDate)}. New entries are marked late.
-        </p>
-      )}
       {phase === "NOT_OPEN" && (
         <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration opens on {formatDateTime(tournament.registrationOpensAt)}. Change the dates from Overview → Edit.</p>
       )}
       {phase === "CLOSED" && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration is closed — the tournament has started.</p>
+        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">Registration closed on {formatDateTime(tournament.registrationClosesAt)}. There is no late registration.</p>
       )}
 
       {loading && !registrations ? (
@@ -139,6 +159,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                 <th className="px-4 py-2.5">Player</th>
                 <th className="px-4 py-2.5">Registered</th>
                 <th className="px-4 py-2.5">Category</th>
+                <th className="px-4 py-2.5">Payment</th>
                 <th className="px-4 py-2.5">Weigh-in</th>
                 <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
@@ -153,11 +174,24 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
                     {formatDateTime(r.createdAt)}
-                    <p className="mt-1">{r.isLate ? <Badge color="red">Late</Badge> : <Badge color="blue">Regular</Badge>}</p>
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {categoryLabel(r)}
                     <p className="text-xs text-slate-400">{r.weightKg} kg</p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
+                    {r.paidAt && <p className="mt-1 text-xs text-slate-400">{formatDateTime(r.paidAt)}</p>}
+                    {r.paymentStatus === "PENDING" && (
+                      <button onClick={() => { setPayMode("CASH"); setPaying(r); }} className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
+                        <IndianRupee size={12} /> Record payment
+                      </button>
+                    )}
+                    {r.paymentStatus === "PAID" && r.paymentMode !== "RAZORPAY" && (
+                      <button onClick={() => setPayment(r, "PENDING")} disabled={busy} className="mt-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:underline">
+                        Undo
+                      </button>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
                     {r.weighInStatus === "CLEARED" ? <Badge color="green">Cleared{r.weighInKg ? ` · ${r.weighInKg} kg` : ""}</Badge>
@@ -167,6 +201,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       <IconButton label="Edit category" onClick={() => setEditing(r)}><Pencil size={15} /></IconButton>
+                      {ticketReady.has(r.studentId) && <IconButton label="Hall ticket" onClick={() => hallTicket(r)}><Ticket size={15} /></IconButton>}
                       <IconButton label="View certificate" onClick={() => certificate(r, "view")}><Eye size={15} /></IconButton>
                       <IconButton label="Download certificate" onClick={() => certificate(r, "download")}><Download size={15} /></IconButton>
                       <IconButton label="Remove entry" danger onClick={() => setRemoving(r)}><Trash2 size={15} /></IconButton>
@@ -188,6 +223,37 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
           onSaved={() => { setEditing(null); refresh(); }}
         />
       )}
+
+      <Modal
+        open={!!paying}
+        onClose={() => setPaying(null)}
+        title="Record payment"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPaying(null)}>Cancel</Button>
+            <Button variant="success" loading={busy} onClick={() => paying && setPayment(paying, "PAID")}>Mark paid</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          <strong>{paying?.student.fullName}</strong> · {paying && categoryLabel(paying)} · <strong>{paying && rupees(paying.fee)}</strong>
+        </p>
+        <p className="mb-2 mt-4 text-[13px] font-medium text-slate-700">Paid by</p>
+        <div className="flex gap-2">
+          {(["CASH", "UPI", "OTHER"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setPayMode(m)}
+              aria-pressed={payMode === m}
+              className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${payMode === m ? "border-brand bg-brand-soft text-brand" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            >
+              {m === "CASH" ? "Cash" : m === "UPI" ? "UPI" : "Other"}
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">For payments taken outside the website. Once all of this student&apos;s entries are paid, their hall ticket is emailed.</p>
+      </Modal>
 
       <Modal
         open={!!removing}
