@@ -32,15 +32,18 @@ export function useApi<T>(path: string | null) {
 let metaCache: Meta | null = null;
 
 export function useMeta() {
+  // Show the copy already loaded straight away, but always fetch the latest too: age groups and weight
+  // classes can change on the server while a tab stays open (a remembered copy would stay out of date).
   const [meta, setMeta] = useState<Meta | null>(metaCache);
   useEffect(() => {
-    if (metaCache) return;
+    let cancelled = false;
     api<Meta>("/public/meta")
       .then((m) => {
         metaCache = m;
-        setMeta(m);
+        if (!cancelled) setMeta(m);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
   return meta;
 }

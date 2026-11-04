@@ -128,6 +128,8 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
 
   const payload = toPayload(form);
   const days = daysBetween(form.startDate, form.endDate);
+  /** Tournament year, for showing each age group's birth years */
+  const year = /^\d{4}/.test(form.startDate) ? Number(form.startDate.slice(0, 4)) : null;
   const allSelected = !!meta?.ageGroups.length && meta.ageGroups.every((g) => form.ageGroups.includes(g.name));
   const toggleAgeGroup = (name: string) =>
     set("ageGroups", form.ageGroups.includes(name) ? form.ageGroups.filter((g) => g !== name) : [...form.ageGroups, name]);
@@ -277,27 +279,42 @@ export function TournamentForm({ initial, submitLabel, onSubmit, onCancel, formI
           <span>All age groups</span>
           <span className={cx("ml-4 text-xs", allSelected ? "text-white/80" : "text-brand/70")}>{form.ageGroups.length}/{meta?.ageGroups.length ?? 0}</span>
         </button>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {meta?.ageGroups.map((g) => {
             const on = form.ageGroups.includes(g.name);
+            const open = g.maxAge >= 100;
+            const ages = open ? `${g.minAge}+ yrs` : g.minAge === g.maxAge ? `${g.minAge} yrs` : `${g.minAge}–${g.maxAge} yrs`;
+            // Birth years for this tournament (age = tournament year − birth year), as the circular lists them.
+            const born = year ? (open ? `Born ${year - g.minAge} or earlier` : `Born ${year - g.maxAge}–${year - g.minAge}`) : "";
+            const playUp = g.playUpFrom !== undefined && g.playUpFrom < g.minAge ? `Players from ${g.playUpFrom} yrs can play up` : "";
+            const classes = (gender: "MALE" | "FEMALE") => g.weightClasses[gender].join(", ");
             return (
               <button
                 type="button"
                 key={g.name}
                 onClick={() => toggleAgeGroup(g.name)}
                 aria-pressed={on}
+                title={`Boys: ${classes("MALE")}\nGirls: ${classes("FEMALE")}`}
                 className={cx(
-                  "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors",
+                  "flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors",
                   on ? "border-brand bg-brand text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
                 )}
               >
-                <span className="min-w-0">{g.name}</span>
-                <span className={cx("shrink-0 text-xs font-medium", on ? "text-white/80" : "text-slate-400")}>{g.minAge}{g.maxAge < 100 ? `–${g.maxAge}` : "+"}</span>
+                <span className="flex w-full items-start justify-between gap-2">
+                  <span className="text-sm font-semibold leading-snug">{g.name.replace(" Age Group ", " · Group ")}</span>
+                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold", on ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>{ages}</span>
+                </span>
+                <span className={cx("text-xs", on ? "text-white/85" : "text-slate-500")}>
+                  {[born, `${g.weightClasses.MALE.length} boys / ${g.weightClasses.FEMALE.length} girls weight classes`].filter(Boolean).join(" · ")}
+                </span>
+                {playUp && <span className={cx("text-[11px] font-medium", on ? "text-white/80" : "text-emerald-700")}>{playUp}</span>}
               </button>
             );
           })}
         </div>
-        <p className="mt-1.5 text-xs text-slate-400">Ages are counted as tournament year minus birth year.</p>
+        <p className="mt-1.5 text-xs text-slate-400">
+          Age = tournament year minus birth year{year ? ` (${year})` : " — pick the start date to see birth years"}. Hover a group to see its weight classes.
+        </p>
       </div>
 
       <Field label="Description" hint="Shown on the public page: rules, reporting time, contact details…">
