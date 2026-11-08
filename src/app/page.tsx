@@ -20,14 +20,14 @@ export default function StartPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-lg font-semibold">Register for a tournament</span>
-          <span className="block text-sm text-white/85">For students</span>
+          <span className="block text-sm text-white/85">For students &amp; working professionals</span>
         </span>
         <ArrowRight size={22} className="shrink-0 transition-transform group-hover:translate-x-1" />
       </Link>
 
       <p className="mt-4 text-center text-sm text-slate-500">
         Already registered?{" "}
-        <Link href="/student/login" className="font-semibold text-brand hover:underline">Student login</Link>
+        <Link href="/student/login" className="font-semibold text-brand hover:underline">Player login</Link>
       </p>
 
       {/* Secondary: admin */}

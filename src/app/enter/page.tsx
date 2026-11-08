@@ -76,7 +76,7 @@ function LoginEmailNote({ status, email, newAccount, withPdf }: { status: LoginE
       <span>
         <span className="font-semibold">We couldn&apos;t email your login details to {email}.</span> Your registration is saved.
         <span className="mt-0.5 block text-xs text-amber-800">
-          Go to <Link href="/student/login" className="font-semibold underline">Student login</Link> → “Forgot password?” and enter this email to get a link to set your password. Your username is your email.
+          Go to <Link href="/student/login" className="font-semibold underline">Player login</Link> → “Forgot password?” and enter this email to get a link to set your password. Your username is your email.
         </span>
       </span>
     </div>
@@ -239,7 +239,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
                 <LoginEmailNote status={step.loginEmail} email={step.email} newAccount={step.newAccount} />
               </div>
               <div className="mt-6">
-                <Link href="/student/login" className="text-sm font-semibold text-brand hover:underline">Go to student login</Link>
+                <Link href="/student/login" className="text-sm font-semibold text-brand hover:underline">Go to player login</Link>
               </div>
             </div>
           )}

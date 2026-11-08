@@ -47,9 +47,9 @@ export default function StudentLoginPage() {
   return (
     <AuthLayout>
       <BackLink href="/" />
-      <h1 className="text-3xl font-bold tracking-tight text-slate-900">{mode === "login" ? "Student login" : "Reset your password"}</h1>
+      <h1 className="text-3xl font-bold tracking-tight text-slate-900">{mode === "login" ? "Player login" : "Reset your password"}</h1>
       <p className="mt-2 text-sm text-slate-500">
-        {mode === "login" ? "Use the username and password from your registration email. Your username is your email — your student ID or temporary ID also works." : "Enter the email you registered with. We'll email you a link to choose a new password."}
+        {mode === "login" ? "Use the username and password from your registration email. Your username is your email — your player ID (TNJA-S-… or TNJA-P-…) or temporary ID also works." : "Enter the email you registered with. We'll email you a link to choose a new password."}
       </p>
 
       {notice && (
@@ -67,7 +67,7 @@ export default function StudentLoginPage() {
               type={mode === "login" ? "text" : "email"}
               autoFocus
               autoComplete="username"
-              placeholder={mode === "login" ? "Email, student ID or temporary ID" : "name@example.com"}
+              placeholder={mode === "login" ? "Email, player ID or temporary ID" : "name@example.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value.trim())}
               required
