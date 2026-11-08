@@ -1,7 +1,7 @@
 "use client";
 
 import { API_BASE, ApiError } from "./api";
-import type { PaymentStatus } from "./types";
+import type { ParticipantType, PaymentStatus } from "./types";
 
 const TOKEN_KEY = "student_token";
 
@@ -94,6 +94,10 @@ export interface MyStudent {
   city: string;
   state: string;
   pincode: string;
+  participantType: ParticipantType;
+  employmentType: string;
+  organisationName: string;
+  occupation: string;
   institutionType: string;
   institutionName: string;
   grade: string;

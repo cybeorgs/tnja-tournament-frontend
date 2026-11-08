@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, Check, ClipboardList, GraduationCap, Home, Loader2, Lock, MapPin, Medal, UserRound, Wallet } from "lucide-react";
-import type { Gender, Student, StudentGender } from "@/lib/types";
+import { Briefcase, Camera, Check, ClipboardList, GraduationCap, Home, Loader2, Lock, MapPin, Medal, UserRound, Wallet } from "lucide-react";
+import type { Gender, ParticipantType, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
-import { lookupPincode, useLocations } from "@/lib/locations";
+import { lookupPincode, pincodeProblem, useLocations } from "@/lib/locations";
 import { DateInput, Field, Input, Select, cx } from "./ui";
 import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
@@ -22,7 +22,10 @@ export type StudentInput = {
   bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; parentPhone: string; emergencyPhone: string; email: string; nationality: string;
   address: string; city: string; state: string; pincode: string;
   annualIncome: string; isBPL: boolean;
+  /** Student (education details) or working professional (occupation details) */
+  participantType: ParticipantType;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
+  employmentType: string; organisationName: string; occupation: string;
   club: string; coachName: string; belt: string;
   /** Additional details (printed on the Tournament Entry Pass); weight in kg as typed */
   weightKg: string; managerName: string; districtPresident: string; districtSecretary: string;
@@ -34,7 +37,9 @@ export const emptyStudent: StudentInput = {
   bloodGroup: "", aadhaarNumber: "", phone: "", alternatePhone: "", parentPhone: "", emergencyPhone: "", email: "", nationality: "Indian",
   address: "", city: "", state: "Tamil Nadu", pincode: "",
   annualIncome: "", isBPL: false,
+  participantType: "STUDENT",
   institutionType: "SCHOOL", institutionName: "", grade: "", degreeDepartment: "",
+  employmentType: "PRIVATE", organisationName: "", occupation: "",
   club: "", coachName: "", belt: "",
   weightKg: "", managerName: "", districtPresident: "", districtSecretary: "",
 };
@@ -45,13 +50,14 @@ export const fromStudent = (s: Student): StudentInput => ({
   bloodGroup: s.bloodGroup, aadhaarNumber: s.aadhaarNumber ?? "", phone: s.phone, alternatePhone: s.alternatePhone, parentPhone: s.parentPhone ?? "", emergencyPhone: s.emergencyPhone ?? "", email: s.email, nationality: s.nationality || "Indian",
   address: s.address, city: s.city, state: s.state || "Tamil Nadu", pincode: s.pincode,
   annualIncome: s.annualIncome === null ? "" : String(s.annualIncome), isBPL: s.isBPL,
+  participantType: s.participantType ?? "STUDENT",
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
+  employmentType: s.employmentType || "PRIVATE", organisationName: s.organisationName ?? "", occupation: s.occupation ?? "",
   club: s.club, coachName: s.coachName, belt: s.belt,
   weightKg: s.weightKg ? String(s.weightKg) : "", managerName: s.managerName ?? "", districtPresident: s.districtPresident ?? "", districtSecretary: s.districtSecretary ?? "",
 });
 
 const MOBILE = /^[6-9]\d{9}$/;
-const PINCODE = /^[1-9]\d{5}$/;
 
 /** Documents a student uploads when registering themselves (data: URLs). */
 export type StudentDocs = { photo: string; bplProof: string; nativityProof: string; nativityProofLabel: string };
@@ -60,7 +66,7 @@ export const emptyDocs: StudentDocs = { photo: "", bplProof: "", nativityProof: 
 /** What still has to be uploaded (or filled in) when registering themselves, or null. */
 export function validateDocs(f: StudentInput, d: StudentDocs): string | null {
   if (!d.photo) return "Please upload a passport-size photograph.";
-  if (!f.parentPhone) return "Please enter the parent / emergency contact number.";
+  if (!f.parentPhone) return f.participantType === "PROFESSIONAL" ? "Please enter an emergency contact number." : "Please enter the parent / emergency contact number.";
   const kg = parseFloat(f.weightKg);
   if (!kg) return "Please enter the player's weight (Additional details).";
   if (kg < 10 || kg > 250) return "Check the player's weight (Additional details).";
@@ -76,12 +82,15 @@ export function validateStudent(f: StudentInput): string | null {
   const missing: [keyof StudentInput, string][] = [
     ["district", "district"], ...(f.outsideTamilNadu ? [] : [["taluk", "taluk"] as [keyof StudentInput, string]]), ["fullName", "full name"], ["fatherName", "father's name"], ["motherName", "mother's name"],
     ["gender", "gender"], ["dob", "date of birth"], ["bloodGroup", "blood group"], ["email", "email"], ["nationality", "nationality"],
-    ["address", "address"], ["city", "city"], ["state", "state"], ["annualIncome", "annual income"], ["institutionName", "institution name"], ["grade", "standard / year"],
+    ["address", "address"], ["city", "city"], ["state", "state"], ["annualIncome", "annual income"],
+    ...(f.participantType === "PROFESSIONAL"
+      ? ([["employmentType", "employment type"], ["organisationName", "organisation / employer name"], ["occupation", "designation / role"]] as [keyof StudentInput, string][])
+      : ([["institutionName", "institution name"], ["grade", "standard / year"]] as [keyof StudentInput, string][])),
   ];
   const gap = missing.find(([k]) => !String(f[k]).trim());
   if (gap) return `Please fill in the ${gap[1]}.`;
-  if (!PINCODE.test(f.residingPincode)) return "Location pincode must be 6 digits.";
-  if (!PINCODE.test(f.pincode)) return "Address pincode must be 6 digits.";
+  const pinProblem = pincodeProblem(f.residingPincode, "Location pincode") ?? pincodeProblem(f.pincode, "Address pincode");
+  if (pinProblem) return pinProblem;
   if (!/^\d{12}$/.test(f.aadhaarNumber)) return "Aadhaar number must be 12 digits.";
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
   if (f.parentPhone && !MOBILE.test(f.parentPhone)) return "Parent / emergency contact number isn't valid.";
@@ -95,6 +104,8 @@ const GENDERS = [{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Fe
 const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "B+ve", "B-ve", "AB+ve", "AB-ve"];
 const STANDARDS = Array.from({ length: 12 }, (_, i) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"} Standard`);
 const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
+const EMPLOYMENT_TYPES = [{ value: "PRIVATE", label: "Private" }, { value: "GOVERNMENT", label: "Government" }, { value: "SELF_EMPLOYED", label: "Self-employed" }, { value: "OTHER", label: "Other" }];
+const PARTICIPANT_TYPES = [{ value: "STUDENT", label: "Student" }, { value: "PROFESSIONAL", label: "Working professional" }];
 
 const digits = (v: string, max: number) => v.replace(/\D/g, "").slice(0, max);
 const letters = (v: string) => v.replace(/[^A-Za-z\s.'-]/g, "");
@@ -106,10 +117,12 @@ function ageFrom(dob: string): number | null {
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, emailOtp, digilocker, docs, onDocsChange, publicForm }: {
+export function StudentFields({ value, onChange, lockGender, lockType, emailOtp, digilocker, docs, onDocsChange, publicForm }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
+  /** Student / working professional can't be changed (editing a saved player: the ID carries the type) */
+  lockType?: boolean;
   /** Players registering themselves: coach, manager, district president and secretary are left to the admin */
   publicForm?: boolean;
   /** Shows a Verify button next to the email (public registration) */
@@ -128,11 +141,24 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
 
   const latestDob = new Date(new Date().setFullYear(new Date().getFullYear() - 3)).toISOString().slice(0, 10);
   const age = ageFrom(value.dob);
+  const professional = value.participantType === "PROFESSIONAL";
   const school = value.institutionType === "SCHOOL";
   const institutionLabel = school ? "School name" : value.institutionType === "COLLEGE" ? "College name" : "Institute name";
 
   return (
     <div className="space-y-8">
+      <Section icon={professional ? <Briefcase /> : <GraduationCap />} title="Registering as">
+        <Field
+          label="I am a"
+          required
+          group
+          className="sm:col-span-2 lg:col-span-3"
+          hint={lockType ? "Fixed at registration (it is part of the player ID)." : "Students and working professionals play in the same age and weight categories."}
+        >
+          <Segmented value={value.participantType} options={PARTICIPANT_TYPES} disabled={lockType} onChange={(t) => set("participantType", t as ParticipantType)} />
+        </Field>
+      </Section>
+
       <Section icon={<MapPin />} title="Location">
         <Field
           label="Pincode"
@@ -232,7 +258,11 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
           <PhoneInput value={value.phone} onChange={(v) => set("phone", v)} />
         </Field>
         {/* One number: the parent's mobile is also the emergency contact. */}
-        <Field label="Parent / emergency contact" required={publicForm} hint="Father, mother or guardian — called in an emergency">
+        <Field
+          label={professional ? "Emergency contact" : "Parent / emergency contact"}
+          required={publicForm}
+          hint={professional ? "A family member or friend — called in an emergency" : "Father, mother or guardian — called in an emergency"}
+        >
           <PhoneInput value={value.parentPhone} onChange={(v) => onChange({ ...value, parentPhone: v, emergencyPhone: v })} />
         </Field>
         {emailOtp ? (
@@ -267,7 +297,7 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         </Field>
       </Section>
 
-      <Section icon={<Wallet />} title="Family income">
+      <Section icon={<Wallet />} title={professional ? "Income" : "Family income"}>
         <Field label="Annual income" required>
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm text-slate-400">₹</span>
@@ -286,6 +316,22 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
         )}
       </Section>
 
+      {professional ? (
+      <Section icon={<Briefcase />} title="Occupation">
+        <Field label="Employment type" required>
+          <Select value={value.employmentType} onChange={(e) => set("employmentType", e.target.value)}>
+            <option value="">Select</option>
+            {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </Select>
+        </Field>
+        <Field label={value.employmentType === "SELF_EMPLOYED" ? "Business name" : "Organisation / employer"} required>
+          <Input value={value.organisationName} onChange={(e) => set("organisationName", e.target.value)} />
+        </Field>
+        <Field label="Designation / role" required>
+          <Input placeholder="e.g. Software Engineer" value={value.occupation} onChange={(e) => set("occupation", e.target.value)} />
+        </Field>
+      </Section>
+      ) : (
       <Section icon={<GraduationCap />} title="Education">
         <Field label="Studying at" required group>
           <Segmented
@@ -309,6 +355,7 @@ export function StudentFields({ value, onChange, lockGender, emailOtp, digilocke
           </Field>
         )}
       </Section>
+      )}
 
       <Section icon={<ClipboardList />} title="Additional details">
         <Field label="Weight" required={!!docs} hint="Your current body weight">
@@ -418,12 +465,14 @@ function usePincodeFill(value: StudentInput, onChange: (v: StudentInput) => void
         if (cancelled) return;
         if (!m.inTamilNadu) {
           latest.current.onChange({ ...latest.current.value, outsideTamilNadu: true, isBPL: false, district: m.district, taluk: "" });
-          setResult({ pincode, text: `${m.district}, ${m.state} — outside Tamil Nadu` });
+          const place = [m.district, m.state].filter(Boolean).join(", ");
+          setResult({ pincode, text: place ? `${place} — outside Tamil Nadu` : "Outside Tamil Nadu — enter your district" });
           return;
         }
         const onlyTaluk = m.taluks.length === 1 ? m.taluks[0]! : "";
         latest.current.onChange({ ...latest.current.value, outsideTamilNadu: false, district: m.district, taluk: onlyTaluk });
-        setResult({ pincode, text: onlyTaluk ? `${m.district}, ${onlyTaluk}` : `${m.district} — pick your taluk` });
+        // No district: not in the India Post directory, or not placed in a district. The student picks it.
+        setResult({ pincode, text: !m.district ? "Tamil Nadu — pick your district and taluk" : onlyTaluk ? `${m.district}, ${onlyTaluk}` : `${m.district} — pick your taluk` });
       })
       .catch((err: Error) => !cancelled && setResult({ pincode, error: err.message }));
     return () => { cancelled = true; };

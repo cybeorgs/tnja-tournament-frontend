@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowRight, Clock, Loader2, MapPin, Mail } from "lucide-react";
 import { api } from "@/lib/api";
-import { lookupPincode, type PincodeMatch } from "@/lib/locations";
-import type { Tournament } from "@/lib/types";
-import { BackLink, Button, Card, Field, Input, Spinner } from "@/components/ui";
+import { lookupPincode, pincodeProblem, type PincodeMatch } from "@/lib/locations";
+import { PARTICIPANT_TYPE_LABEL, type ParticipantType, type Tournament } from "@/lib/types";
+import { BackLink, Button, Card, Field, Input, Spinner, cx } from "@/components/ui";
 import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { StudentFields, emptyDocs, emptyStudent, validateDocs, validateStudent, type StudentDocs, type StudentInput } from "@/components/StudentFields";
@@ -111,9 +111,10 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
   };
 
   /** The pincode decides the rest of the form: Tamil Nadu (BPL question) or elsewhere (proof of nativity). */
-  function startWith(match: PincodeMatch) {
+  function startWith(match: PincodeMatch, participantType: ParticipantType) {
     setStudent((s) => ({
       ...s,
+      participantType,
       residingPincode: match.pincode,
       outsideTamilNadu: !match.inTamilNadu,
       isBPL: false,
@@ -248,19 +249,24 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
   );
 }
 
-/** First question: where does the student live? Tamil Nadu residents and others follow different paths. */
-function PincodeStep({ onFound }: { onFound: (m: PincodeMatch) => void }) {
+/**
+ * First questions: student or working professional, and where do they live? Tamil Nadu residents and
+ * others follow different paths. (Both types play the same categories and pay the same fees.)
+ */
+function PincodeStep({ onFound }: { onFound: (m: PincodeMatch, type: ParticipantType) => void }) {
+  const [type, setType] = useState<ParticipantType>("STUDENT");
   const [pincode, setPincode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!/^[1-9]\d{5}$/.test(pincode)) return setError("Enter your 6-digit pincode.");
+    const problem = pincodeProblem(pincode);
+    if (problem) return setError(problem);
     setError("");
     setBusy(true);
     try {
-      onFound(await lookupPincode(pincode));
+      onFound(await lookupPincode(pincode), type);
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -272,9 +278,25 @@ function PincodeStep({ onFound }: { onFound: (m: PincodeMatch) => void }) {
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft text-brand">
         <MapPin size={26} />
       </div>
-      <h2 className="mt-4 text-xl font-bold text-slate-900">Where do you live?</h2>
-      <p className="mt-1 text-sm text-slate-500">Start with the pincode of where you live or study.</p>
-      <Field label="Pincode" className="mt-6 text-left">
+      <h2 className="mt-4 text-xl font-bold text-slate-900">Let&apos;s get started</h2>
+      <p className="mt-1 text-sm text-slate-500">Tell us who is registering and where you live.</p>
+      <Field label="I am a" group className="mt-6 text-left">
+        <div role="radiogroup" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+          {(Object.keys(PARTICIPANT_TYPE_LABEL) as ParticipantType[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="radio"
+              aria-checked={type === t}
+              onClick={() => setType(t)}
+              className={cx("rounded-lg px-3 py-2.5 font-semibold transition-all", type === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")}
+            >
+              {PARTICIPANT_TYPE_LABEL[t]}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Pincode where you live" className="mt-4 text-left">
         <Input
           autoFocus
           inputMode="numeric"

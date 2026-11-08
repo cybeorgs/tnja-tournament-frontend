@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, FileText, History, Lock, XCircle } from "lucide-re
 import { api, fetchObjectUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
-import type { StudentDetail as Detail } from "@/lib/types";
+import { EMPLOYMENT_TYPE_LABEL, type StudentDetail as Detail } from "@/lib/types";
 import { Badge, Button, EmptyState, Modal, Spinner, Textarea } from "./ui";
 import { PaymentBadge } from "./Payment";
 import { findBelt } from "@/lib/belts";
@@ -68,7 +68,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
 
       <Group title="Contact">
         <Item label="Mobile" value={s.phone} />
-        <Item label="Parent / emergency contact" value={s.parentPhone || s.emergencyPhone} />
+        <Item label={s.participantType === "PROFESSIONAL" ? "Emergency contact" : "Parent / emergency contact"} value={s.parentPhone || s.emergencyPhone} />
         <Item label="Email" value={s.email} />
         <Item label="Aadhaar" value={s.aadhaarNumber ? `XXXX XXXX ${s.aadhaarNumber.slice(-4)}` : ""} />
         <Item label="Blood group" value={s.bloodGroup} />
@@ -82,12 +82,22 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
         <Item label="Permanent address" value={[s.address, s.city, s.state, s.pincode].filter(Boolean).join(", ")} wide />
       </Group>
 
-      <Group title="Education & academy">
-        <Item label="Institution" value={[s.institutionName, s.institutionType && titleCase(s.institutionType)].filter(Boolean).join(" · ")} />
-        <Item label="Standard / year" value={[s.grade, s.degreeDepartment].filter(Boolean).join(" · ")} />
-        <Item label="Club" value={s.club} />
-        <Item label="Belt" value={findBelt(s.belt)?.label ?? s.belt} />
-      </Group>
+      {s.participantType === "PROFESSIONAL" ? (
+        <Group title="Occupation & academy">
+          <Item label="Type" value="Working professional" />
+          <Item label="Organisation" value={[s.organisationName, EMPLOYMENT_TYPE_LABEL[s.employmentType] ?? s.employmentType].filter(Boolean).join(" · ")} />
+          <Item label="Designation" value={s.occupation} />
+          <Item label="Club" value={s.club} />
+          <Item label="Belt" value={findBelt(s.belt)?.label ?? s.belt} />
+        </Group>
+      ) : (
+        <Group title="Education & academy">
+          <Item label="Institution" value={[s.institutionName, s.institutionType && titleCase(s.institutionType)].filter(Boolean).join(" · ")} />
+          <Item label="Standard / year" value={[s.grade, s.degreeDepartment].filter(Boolean).join(" · ")} />
+          <Item label="Club" value={s.club} />
+          <Item label="Belt" value={findBelt(s.belt)?.label ?? s.belt} />
+        </Group>
+      )}
 
       <Group title="Additional details">
         <Item label="Weight" value={s.weightKg ? `${s.weightKg} kg` : ""} />

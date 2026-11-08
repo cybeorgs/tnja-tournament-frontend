@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Ticket, Trophy, XCircle } from "lucide-react";
 import { PASSWORD_HINT, passwordProblem, studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
 import { formatDate, formatDateRange, rupees, titleCase } from "@/lib/format";
-import type { Tournament } from "@/lib/types";
+import { EMPLOYMENT_TYPE_LABEL, type Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
 import { PayNow } from "@/components/PayNow";
@@ -224,18 +224,26 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
         ["Date of birth", formatDate(s.dob)], ["Blood group", s.bloodGroup], ["Aadhaar", s.aadhaarNumber], ["Nationality", s.nationality],
       ],
     },
-    { title: "Contact", rows: [["Mobile", s.phone], ["Parent / emergency contact", s.parentPhone || s.emergencyPhone], ["Email", s.email]] },
+    { title: "Contact", rows: [["Mobile", s.phone], [s.participantType === "PROFESSIONAL" ? "Emergency contact" : "Parent / emergency contact", s.parentPhone || s.emergencyPhone], ["Email", s.email]] },
     {
       title: "Address",
       rows: [["Address", s.address], ["City", s.city], ["State", s.state], ["Pincode", s.pincode], ["District", s.district], ["Taluk", s.taluk], ["Residing pincode", s.residingPincode]],
     },
-    {
-      title: "Education & academy",
-      rows: [
-        [INSTITUTION[s.institutionType] ?? "Institution", s.institutionName], ["Standard / year", s.grade], ["Department", s.degreeDepartment],
-        ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
-      ],
-    },
+    s.participantType === "PROFESSIONAL"
+      ? {
+          title: "Occupation & academy",
+          rows: [
+            ["Type", "Working professional"], ["Organisation", s.organisationName], ["Employment type", EMPLOYMENT_TYPE_LABEL[s.employmentType] ?? s.employmentType], ["Designation", s.occupation],
+            ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
+          ],
+        }
+      : {
+          title: "Education & academy",
+          rows: [
+            [INSTITUTION[s.institutionType] ?? "Institution", s.institutionName], ["Standard / year", s.grade], ["Department", s.degreeDepartment],
+            ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
+          ],
+        },
   ];
 
   return (

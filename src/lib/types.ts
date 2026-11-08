@@ -86,9 +86,13 @@ export interface TournamentDetail extends Tournament {
   };
 }
 
+export type ParticipantType = "STUDENT" | "PROFESSIONAL";
+export const PARTICIPANT_TYPE_LABEL: Record<ParticipantType, string> = { STUDENT: "Student", PROFESSIONAL: "Working professional" };
+export const EMPLOYMENT_TYPE_LABEL: Record<string, string> = { PRIVATE: "Private", GOVERNMENT: "Government", SELF_EMPLOYED: "Self-employed", OTHER: "Other" };
+
 export interface Student {
   id: string;
-  /** Permanent student ID, e.g. TNJA-S-000123; null until an application from outside Tamil Nadu is approved */
+  /** Permanent ID: TNJA-S-000123 (student) or TNJA-P-000123 (working professional); null until an application from outside Tamil Nadu is approved */
   studentNo: string | null;
   status: StudentStatus;
   /** Lives outside Tamil Nadu (uploaded proof of nativity, needed approval) */
@@ -120,10 +124,17 @@ export interface Student {
   state: string;
   pincode: string;
   annualIncome: number | null;
+  /** Student or working professional (same categories and fees; education vs occupation details) */
+  participantType: ParticipantType;
   institutionType: string;
   institutionName: string;
   grade: string;
   degreeDepartment: string;
+  /** Working professionals: PRIVATE | GOVERNMENT | SELF_EMPLOYED | OTHER */
+  employmentType: string;
+  organisationName: string;
+  /** Designation / role */
+  occupation: string;
   coachName: string;
   /** Additional details, printed on the Tournament Entry Pass */
   weightKg: number | null;

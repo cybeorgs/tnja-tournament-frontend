@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
+import { PINCODE_PATTERN } from "@/lib/locations";
 import { Button, Field, Input, cx } from "./ui";
 import { errorMessage } from "./Toast";
 
@@ -26,7 +27,7 @@ const MANUAL_CHECK_GAP_MS = 10 * 1000;
 export const DIGILOCKER_CHANNEL = "tnja-tournament-digilocker";
 
 const AADHAAR = /^[2-9]\d{11}$/;
-const PINCODE = /^[1-9]\d{5}$/;
+const PINCODE = PINCODE_PATTERN;
 const DOB = /^\d{4}-\d{2}-\d{2}$/;
 
 type Status = "idle" | "starting" | "waiting" | "verified";

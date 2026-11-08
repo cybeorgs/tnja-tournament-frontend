@@ -6,8 +6,8 @@ import { ImportStudentsModal } from "@/components/ImportStudentsModal";
 import { downloadFile } from "@/lib/api";
 import { errorMessage, useToast } from "@/components/Toast";
 import { GENDER_LABEL, formatDate } from "@/lib/format";
-import type { Paged, Student } from "@/lib/types";
-import { Badge, Button, cx } from "@/components/ui";
+import type { Paged, ParticipantType, Student } from "@/lib/types";
+import { Badge, Button, Select, cx } from "@/components/ui";
 import { PeopleList } from "@/components/PeopleList";
 import { StatusBadge, StudentDetailModal } from "@/components/StudentDetail";
 import { useApi } from "@/lib/hooks";
@@ -20,6 +20,8 @@ type StudentForm = StudentInput & { savedEmail?: string };
 export default function StudentsPage() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [tab, setTab] = useState<"ALL" | "PENDING">("ALL");
+  const [type, setType] = useState<"" | ParticipantType>("");
+  const filter = [tab === "PENDING" ? "status=PENDING" : "", type ? `type=${type}` : ""].filter(Boolean).join("&");
   // Bumped after approving/rejecting so the list and the count reload.
   const [version, setVersion] = useState(0);
   const { data: pending } = useApi<Paged<Student>>(`/students?pageSize=1&status=PENDING&v=${version}`);
@@ -29,7 +31,7 @@ export default function StudentsPage() {
   async function exportExcel() {
     setExporting(true);
     try {
-      await downloadFile(`/students/export${tab === "PENDING" ? "?status=PENDING" : ""}`, "students.xlsx");
+      await downloadFile(`/students/export${filter ? `?${filter}` : ""}`, "students.xlsx");
     } catch (err) {
       toast(errorMessage(err), false);
     } finally {
@@ -39,10 +41,11 @@ export default function StudentsPage() {
   return (
     <>
       <PeopleList<Student, StudentForm>
-        key={`${tab}-${version}`}
-        query={tab === "PENDING" ? "&status=PENDING" : ""}
+        key={`${tab}-${type}-${version}`}
+        query={filter ? `&${filter}` : ""}
         toolbar={
-          <div className="mb-4 flex w-full rounded-2xl bg-slate-100 p-1 text-sm sm:inline-flex sm:w-auto">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex w-full rounded-2xl bg-slate-100 p-1 text-sm sm:inline-flex sm:w-auto">
             {([["ALL", "All students", "All"], ["PENDING", "Waiting for approval", "Waiting"]] as const).map(([id, label, short]) => (
               <button
                 key={id}
@@ -54,6 +57,12 @@ export default function StudentsPage() {
               </button>
             ))}
           </div>
+          <Select aria-label="Player type" value={type} onChange={(e) => setType(e.target.value as "" | ParticipantType)} className="sm:w-56">
+            <option value="">Students &amp; professionals</option>
+            <option value="STUDENT">Students only</option>
+            <option value="PROFESSIONAL">Working professionals only</option>
+          </Select>
+          </div>
         }
         headerActions={
           <>
@@ -64,7 +73,7 @@ export default function StudentsPage() {
           </>
         }
         title="Students"
-        subtitle={<>Students register themselves from <a href="/enter" target="_blank" className="font-semibold text-brand hover:underline">tournament registration</a>.</>}
+        subtitle={<>Students and working professionals register themselves from <a href="/enter" target="_blank" className="font-semibold text-brand hover:underline">tournament registration</a>.</>}
         endpoint="/students"
         noun="Student"
         emptyHint="Add one here, or share the registration link."
@@ -78,7 +87,7 @@ export default function StudentsPage() {
         }
         wideForm
         renderForm={(value, onChange) => (
-          <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} />
+          <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} lockType={value.savedEmail !== undefined} />
         )}
         onView={(s) => setViewing(s.id)}
         columns={[
@@ -90,7 +99,7 @@ export default function StudentsPage() {
             header: "Name",
             cell: (s) => (
               <button onClick={() => setViewing(s.id)} className="flex items-center gap-2 text-left font-semibold text-slate-800 hover:text-brand">
-                {s.fullName} {s.source === "SELF" && <Badge color="blue">Self</Badge>}
+                {s.fullName} {s.participantType === "PROFESSIONAL" && <Badge color="orange">Professional</Badge>} {s.source === "SELF" && <Badge color="blue">Self</Badge>}
               </button>
             ),
           },
