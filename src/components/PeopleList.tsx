@@ -13,7 +13,7 @@ import { errorMessage, useToast } from "./Toast";
  * Shared by the Students and Referees pages.
  */
 export function PeopleList<T extends { id: string; fullName: string }, F>({
-  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm, query = "", toolbar, headerActions,
+  title, subtitle, endpoint, noun, emptyHint, icon, empty, toForm, toBody, columns, renderForm, validate, onView, searchPlaceholder = "Search", wideForm, query = "", toolbar, headerActions, onChanged,
 }: {
   title: string;
   subtitle: ReactNode;
@@ -37,6 +37,8 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   toolbar?: ReactNode;
   /** Extra header buttons, before "Add …" */
   headerActions?: ReactNode;
+  /** After an item is added, saved or deleted (e.g. to refresh counts shown elsewhere) */
+  onChanged?: () => void;
 }) {
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -69,6 +71,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
       toast(editing === "new" ? `${noun} added.` : "Saved.");
       setEditing(null);
       reload();
+      onChanged?.();
     } catch (err) {
       toast(errorMessage(err), false);
     } finally {
@@ -82,6 +85,7 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
       await api(`${endpoint}/${item.id}`, { method: "DELETE" });
       toast(`${noun} deleted.`);
       reload();
+      onChanged?.();
     } catch (err) {
       const message = errorMessage(err);
       toast(/in use/.test(message) ? `${item.fullName} is entered in a tournament, so they can't be deleted.` : message, false);
