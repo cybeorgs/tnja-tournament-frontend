@@ -9,7 +9,8 @@ export const auth = {
 };
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** `data` is the whole error body, for fields beyond the message (e.g. retryAfter, suggestion). */
+  constructor(public status: number, message: string, public data: Record<string, unknown> = {}) {
     super(message);
   }
 }
@@ -21,7 +22,7 @@ async function errorFrom(res: Response): Promise<ApiError> {
     auth.clear();
     if (window.location.pathname !== "/login") window.location.href = "/login";
   }
-  return new ApiError(res.status, message);
+  return new ApiError(res.status, message, body && typeof body === "object" ? body : {});
 }
 
 function headers(json: boolean): HeadersInit {

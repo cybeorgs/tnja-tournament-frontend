@@ -5,6 +5,7 @@ import { Briefcase, Camera, Check, ClipboardList, GraduationCap, Home, Loader2, 
 import type { Gender, ParticipantType, Student, StudentGender } from "@/lib/types";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, pincodeProblem, useLocations } from "@/lib/locations";
+import { emailProblem } from "@/lib/email";
 import { DateInput, Field, Input, Select, cx } from "./ui";
 import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
@@ -95,7 +96,8 @@ export function validateStudent(f: StudentInput): string | null {
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
   if (f.parentPhone && !MOBILE.test(f.parentPhone)) return "Parent / emergency contact number isn't valid.";
   if (f.gender !== "MALE" && f.gender !== "FEMALE") return "Choose male or female.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return "Enter a valid email address.";
+  const badEmail = emailProblem(f.email);
+  if (badEmail) return badEmail;
   if (f.weightKg && !(parseFloat(f.weightKg) >= 10 && parseFloat(f.weightKg) <= 250)) return "Weight must be between 10 and 250 kg.";
   return null;
 }
