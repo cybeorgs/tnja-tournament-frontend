@@ -9,7 +9,7 @@ import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, Spinner, cx
 import { errorMessage, useToast } from "@/components/Toast";
 
 type Category = "OTP" | "REGISTRATION" | "ENTRY_PASS" | "PASSWORD_RESET" | "ADMIN";
-type Budget = { category: Category; label: string; limit: number | null; extra: number; extraGrantedBy: string; sent: number; remaining: number | null };
+type Budget = { category: Category; label: string; limit: number | null; sent: number; remaining: number | null };
 type Overview = { transport: "smtp" | "console"; productionDeployment: boolean; budgets: Budget[]; held: number };
 type EmailRow = {
   id: string; kind: string; category: Category; trigger: string; actor: string; toEmail: string; subject: string;
@@ -56,28 +56,12 @@ export default function EmailsPage() {
   const { data: log, loading, reload: reloadLog } = useApi<Paged<EmailRow>>(`/email/messages?${params}`);
   const pages = log ? Math.max(1, Math.ceil(log.total / log.pageSize)) : 1;
 
-  async function allowMore(b: Budget) {
-    const answer = prompt(`Allow how many more "${b.label}" today?${b.limit !== null ? ` (limit ${b.limit}, used ${b.sent})` : ""}\nThis is recorded with your name.`, "10");
-    const extra = Number(answer);
-    if (!answer || !Number.isInteger(extra) || extra < 1) return;
-    setBusy(`extra-${b.category}`);
-    try {
-      await api("/email/budget/extra", { body: { category: b.category, extra } });
-      toast(`Allowed ${extra} more today.`);
-      reloadOverview();
-    } catch (err) {
-      toast(errorMessage(err), false);
-    } finally {
-      setBusy("");
-    }
-  }
-
   async function sendHeld() {
     if (!overview?.held || !confirm(`Send the ${overview.held} held email${overview.held === 1 ? "" : "s"} now? Each uses one email credit and must fit today's limit.`)) return;
     setBusy("held");
     try {
       const r = await api<{ sent: number; stillHeld: number; failed: number }>("/email/held/send", { body: {} });
-      toast(`Sent ${r.sent}.${r.stillHeld ? ` ${r.stillHeld} still held (limit reached — allow more first).` : ""}${r.failed ? ` ${r.failed} failed.` : ""}`, !r.failed);
+      toast(`Sent ${r.sent}.${r.stillHeld ? ` ${r.stillHeld} still held — today's limit is reached; they can go tomorrow, or after the limit is raised in .env.` : ""}${r.failed ? ` ${r.failed} failed.` : ""}`, !r.failed);
       reloadOverview();
       reloadLog();
     } catch (err) {
@@ -103,7 +87,7 @@ export default function EmailsPage() {
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center">
           <PauseCircle className="shrink-0 text-amber-600" />
           <p className="flex-1 text-sm text-amber-900">
-            <span className="font-semibold">{overview.held} email{overview.held === 1 ? " is" : "s are"} held</span> because a daily limit was reached. Nothing was lost: allow more for today if needed, then send them.
+            <span className="font-semibold">{overview.held} email{overview.held === 1 ? " is" : "s are"} held</span> because a daily limit was reached. Nothing was lost: send them once there&apos;s room (tomorrow, or after raising the limit in the server&apos;s .env).
           </p>
           <Button icon={<Send size={15} />} loading={busy === "held"} onClick={sendHeld}>Send held emails</Button>
         </div>
@@ -113,7 +97,7 @@ export default function EmailsPage() {
         <h2 className="mb-3 font-semibold text-slate-900">Today&apos;s limits</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {(overview?.budgets ?? []).map((b) => {
-            const cap = b.limit === null ? null : b.limit + b.extra;
+            const cap = b.limit;
             const pct = cap ? Math.min(100, Math.round((b.sent / cap) * 100)) : 0;
             return (
               <Card key={b.category} className="flex flex-col gap-2 p-4">
@@ -126,15 +110,12 @@ export default function EmailsPage() {
                     <div className={cx("h-full rounded-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${pct}%` }} />
                   </div>
                 )}
-                {b.extra > 0 && <p className="text-[11px] text-slate-500">+{b.extra} allowed by {b.extraGrantedBy}</p>}
-                {b.limit !== null && (
-                  <Button variant="secondary" className="mt-auto h-8 text-xs" loading={busy === `extra-${b.category}`} onClick={() => allowMore(b)}>Allow more today</Button>
-                )}
+                {b.remaining !== null && <p className="text-[11px] text-slate-500">{b.remaining} left today</p>}
               </Card>
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-slate-500">Limits are set on the server (EMAIL_DAILY_LIMIT_* in .env) and reset at midnight, India time.</p>
+        <p className="mt-2 text-xs text-slate-500">Limits can only be changed on the server (EMAIL_DAILY_LIMIT_* in .env, then restart the backend). They reset at midnight, India time.</p>
       </section>
 
       <Card>

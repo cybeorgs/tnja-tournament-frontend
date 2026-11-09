@@ -13,7 +13,7 @@ interface Imported {
   created: number; students: { row: number; fullName: string; studentNo: string | null }[]; failed: RowResult[];
   emailsEnabled?: boolean; emailsQueued: number; emailsSent?: number; emailsHeld?: number; emailsFailed?: number; emailsBlocked?: number; emailsSkipped?: number;
 }
-type RegistrationBudget = { budgets: { category: string; limit: number | null; extra: number; sent: number; remaining: number | null }[] };
+type RegistrationBudget = { budgets: { category: string; limit: number | null; sent: number; remaining: number | null }[] };
 
 // The server never emails reserved test domains; the estimate leaves them out the same way.
 const undeliverable = (email: string) => /(.(invalid|test|example|localhost)|@example.(com|net|org))$/i.test(email.trim());
@@ -236,11 +236,11 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
                     Each email uses one credit from the monthly email plan. Each student is emailed once — importing again never resends.
                     {budget && (budget.limit === null
                       ? ` Registration emails today: ${budget.sent} (no daily limit set).`
-                      : ` Today's registration-email limit: ${budget.sent} used of ${budget.limit + budget.extra} — ${budget.remaining} left.`)}
+                      : ` Today's registration-email limit: ${budget.sent} used of ${budget.limit} — ${budget.remaining} left.`)}
                   </p>
                   {overBudget && (
                     <p className="text-xs font-semibold text-red-700">
-                      That&apos;s more than today&apos;s limit allows: {budget!.remaining} will be sent now and the other {expectedEmails - (budget!.remaining ?? 0)} held. Allow more on Admin → Emails first, or send the held ones later.
+                      That&apos;s more than today&apos;s limit allows: {budget!.remaining} will be sent now and the other {expectedEmails - (budget!.remaining ?? 0)} held. Send the held ones from Admin → Emails tomorrow, or raise the limit in the server&apos;s .env first.
                     </p>
                   )}
                   {expectedEmails > 0 && (
