@@ -53,7 +53,8 @@ type Step =
   | { kind: "pending"; email: string; tempId: string; newAccount: boolean; loginEmail: LoginEmail };
 
 /** Whether the username/password email went out (the backend sends it before replying). */
-type LoginEmail = "SENT" | "FAILED" | "NOT_CONFIGURED";
+/** QUEUED: today's email limit was reached; the office sends it shortly (nothing is lost). */
+type LoginEmail = "SENT" | "FAILED" | "NOT_CONFIGURED" | "QUEUED";
 
 /** Where the login details went, or what to do when the email couldn't be sent. */
 function LoginEmailNote({ status, email, newAccount, withPdf }: { status: LoginEmail; email: string; newAccount: boolean; withPdf?: boolean }) {
@@ -65,6 +66,19 @@ function LoginEmailNote({ status, email, newAccount, withPdf }: { status: LoginE
           We&apos;ve emailed your username{newAccount ? " and password" : ""}{withPdf ? " with your registration PDF" : ""} to <span className="font-semibold text-slate-800">{email}</span>.
           <span className="mt-0.5 block text-xs text-slate-500">
             {newAccount ? "Not in your inbox in a few minutes? Check Spam / Promotions." : "Log in with the password you already use for this email."}
+          </span>
+        </span>
+      </div>
+    );
+  }
+  if (status === "QUEUED") {
+    return (
+      <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm text-slate-600">
+        <Mail size={16} className="mt-0.5 shrink-0 text-brand" />
+        <span>
+          Your registration is saved. Your login details{withPdf ? " and registration PDF" : ""} will be emailed to <span className="font-semibold text-slate-800">{email}</span> shortly.
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Need to log in sooner? Go to <Link href="/student/login" className="font-semibold underline">Player login</Link> → “Forgot password?”. Your username is your email.
           </span>
         </span>
       </div>

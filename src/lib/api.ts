@@ -62,7 +62,7 @@ export async function uploadFile<T>(path: string, file: File): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export interface ImportProgress { phase: "CHECKING" | "SAVING"; done: number; total: number }
+export interface ImportProgress { phase: "CHECKING" | "SAVING" | "EMAILING"; done: number; total: number }
 
 /**
  * Run a background import: upload the file to `path` (which replies with a job id), then poll

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { History, IndianRupee, LayoutDashboard, LogOut, Settings as SettingsIcon, Trophy, Users } from "lucide-react";
+import { History, IndianRupee, LayoutDashboard, LogOut, Mail, Settings as SettingsIcon, Trophy, Users } from "lucide-react";
 import { api, auth } from "@/lib/api";
 import { useSettings } from "@/lib/hooks";
 import { Brand, brandLogo, regNoLabel } from "@/components/Brand";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/admin/tournaments", label: "Tournaments", short: "Events", icon: Trophy },
   { href: "/admin/students", label: "Students", short: "Students", icon: Users },
   { href: "/admin/payments", label: "Payments", short: "Payments", icon: IndianRupee },
+  { href: "/admin/emails", label: "Emails", short: "Emails", icon: Mail },
   { href: "/admin/audit", label: "Audit log", short: "Log", icon: History },
   { href: "/admin/settings", label: "Settings", short: "Settings", icon: SettingsIcon },
 ];
@@ -94,7 +95,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom tab bar */}
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] backdrop-blur-lg lg:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-6">
+        <div className="mx-auto grid max-w-2xl grid-cols-7">
           {NAV.map(({ href, short, icon: Icon, exact }) => {
             const active = isActive(href, exact);
             return (
@@ -102,10 +103,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={cx("relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors", active ? "text-brand" : "text-slate-500 active:text-slate-800")}
+                className={cx("relative flex min-w-0 flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors", active ? "text-brand" : "text-slate-500 active:text-slate-800")}
               >
                 {active && <span className="absolute inset-x-3 top-0 h-[3px] bg-brand" />}
-                <span className={cx("flex h-8 w-11 items-center justify-center rounded-full transition-colors", active && "bg-brand-soft")}>
+                <span className={cx("flex h-8 w-10 items-center justify-center rounded-full transition-colors", active && "bg-brand-soft")}>
                   <Icon size={20} strokeWidth={active ? 2.4 : 2} />
                 </span>
                 {short}

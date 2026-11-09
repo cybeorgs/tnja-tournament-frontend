@@ -3,12 +3,20 @@
 import { useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Upload, XCircle } from "lucide-react";
 import { downloadFile, runImportJob, type ImportProgress } from "@/lib/api";
+import { useApi } from "@/lib/hooks";
 import { Button, Modal, cx } from "./ui";
 import { errorMessage, useToast } from "./Toast";
 
 interface RowResult { row: number; fullName: string; email: string; district: string; errors: string[] }
 interface Preview { rows: RowResult[]; valid: number; invalid: number; missingColumns: string[]; unknownColumns: string[] }
-interface Imported { created: number; students: { row: number; fullName: string; studentNo: string | null }[]; failed: RowResult[]; emailsQueued: number; emailsSkipped?: number }
+interface Imported {
+  created: number; students: { row: number; fullName: string; studentNo: string | null }[]; failed: RowResult[];
+  emailsEnabled?: boolean; emailsQueued: number; emailsSent?: number; emailsHeld?: number; emailsFailed?: number; emailsBlocked?: number; emailsSkipped?: number;
+}
+type RegistrationBudget = { budgets: { category: string; limit: number | null; extra: number; sent: number; remaining: number | null }[] };
+
+// The server never emails reserved test domains; the estimate leaves them out the same way.
+const undeliverable = (email: string) => /(.(invalid|test|example|localhost)|@example.(com|net|org))$/i.test(email.trim());
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -23,7 +31,9 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [result, setResult] = useState<Imported | null>(null);
-  const [sendEmails, setSendEmails] = useState(true);
+  // Off unless the admin turns it on and confirms the number of emails: each one uses an email credit.
+  const [sendEmails, setSendEmails] = useState(false);
+  const [confirmedEmails, setConfirmedEmails] = useState(false);
   const [busy, setBusy] = useState<"" | "check" | "import" | "template">("");
   const [error, setError] = useState("");
   const [showReady, setShowReady] = useState(false);
@@ -35,6 +45,8 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
     setResult(null);
     setError("");
     setShowReady(false);
+    setSendEmails(false);
+    setConfirmedEmails(false);
     if (input.current) input.current.value = "";
   };
   const close = () => {
@@ -47,6 +59,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
   async function check(f: File) {
     setFile(f);
     setPreview(null);
+    setConfirmedEmails(false);
     setError("");
     if (f.size > MAX_BYTES) return setError("The file must be smaller than 5 MB.");
     if (!/\.(xlsx|csv)$/i.test(f.name)) return setError(/\.xls$/i.test(f.name) ? "Old .xls files can't be read — open it in Excel and save as .xlsx." : "Choose an .xlsx or .csv file.");
@@ -62,10 +75,11 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
   }
 
   async function runImport() {
-    if (!file) return;
+    if (!file || (sendEmails && !confirmedEmails)) return;
     setBusy("import");
     try {
-      const r = await runImportJob<Imported>(`/students/import${sendEmails ? "?sendEmails=1" : ""}`, "/students/import/jobs", file, setProgress);
+      const query = sendEmails ? `?sendEmails=1&confirmEmails=${expectedEmails}` : "";
+      const r = await runImportJob<Imported>(`/students/import${query}`, "/students/import/jobs", file, setProgress);
       setResult(r);
       if (r.created) onImported();
     } catch (err) {
@@ -89,6 +103,11 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
 
   const problems = preview?.rows.filter((r) => r.errors.length) ?? [];
   const ready = preview?.rows.filter((r) => !r.errors.length) ?? [];
+  const expectedEmails = ready.filter((r) => !undeliverable(r.email)).length;
+  // Today's registration-email budget, shown before anything is sent.
+  const { data: emailBudget } = useApi<RegistrationBudget>(sendEmails && preview ? "/email/overview" : null);
+  const budget = emailBudget?.budgets.find((b) => b.category === "REGISTRATION");
+  const overBudget = !!budget && budget.remaining !== null && expectedEmails > budget.remaining;
 
   const footer = result ? (
     <Button onClick={close}>Done</Button>
@@ -96,7 +115,7 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
     <>
       <Button variant="secondary" onClick={close} disabled={busy === "import"}>Cancel</Button>
       {preview && (
-        <Button icon={<Upload size={16} />} loading={busy === "import"} disabled={!preview.valid} onClick={runImport}>
+        <Button icon={<Upload size={16} />} loading={busy === "import"} disabled={!preview.valid || (sendEmails && expectedEmails > 0 && !confirmedEmails)} onClick={runImport}>
           Import {preview.valid} student{preview.valid === 1 ? "" : "s"}
         </Button>
       )}
@@ -113,7 +132,13 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
               <p className="font-bold">{result.created} student{result.created === 1 ? "" : "s"} imported</p>
               <p className="mt-0.5">
                 Each has a permanent student ID.
-                {result.emailsQueued > 0 ? ` Registration emails with the username, password and registration PDF are being sent to ${result.emailsQueued} address${result.emailsQueued === 1 ? "" : "es"}.` : " No emails were sent — students can use “Forgot password” on the student login to get a password."}
+                {result.emailsQueued > 0
+                  ? ` Registration emails sent: ${result.emailsSent ?? 0}.`
+                  : result.emailsBlocked
+                    ? ` No emails were sent: ${result.emailsBlocked} would have gone out, more than you confirmed (the file may have changed after the check). Students can use “Forgot password” on the player login.`
+                    : " No emails were sent — students can use “Forgot password” on the player login to get a password."}
+                {!!result.emailsHeld && ` ${result.emailsHeld} held because today's email limit was reached — release them from Admin → Emails.`}
+                {!!result.emailsFailed && ` ${result.emailsFailed} could not be sent (see Admin → Emails).`}
                 {!!result.emailsSkipped && ` ${result.emailsSkipped} test address${result.emailsSkipped === 1 ? " was" : "es were"} skipped (e.g. @example.invalid).`}
               </p>
             </div>
@@ -197,9 +222,34 @@ export function ImportStudentsModal({ open, onClose, onImported }: { open: boole
               )}
               {preview.valid > 0 && (
                 <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={sendEmails} onChange={(e) => setSendEmails(e.target.checked)} className="h-4 w-4 accent-[#ff7400]" />
+                  <input type="checkbox" checked={sendEmails} onChange={(e) => { setSendEmails(e.target.checked); setConfirmedEmails(false); }} className="h-4 w-4 accent-[#ff7400]" />
                   Email each student their username, password and registration PDF
                 </label>
+              )}
+              {preview.valid > 0 && sendEmails && (
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <p className="flex items-start gap-2 font-semibold">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    {preview.valid} student{preview.valid === 1 ? "" : "s"} will be imported and {expectedEmails} registration email{expectedEmails === 1 ? "" : "s"} sent.
+                  </p>
+                  <p className="text-xs">
+                    Each email uses one credit from the monthly email plan. Each student is emailed once — importing again never resends.
+                    {budget && (budget.limit === null
+                      ? ` Registration emails today: ${budget.sent} (no daily limit set).`
+                      : ` Today's registration-email limit: ${budget.sent} used of ${budget.limit + budget.extra} — ${budget.remaining} left.`)}
+                  </p>
+                  {overBudget && (
+                    <p className="text-xs font-semibold text-red-700">
+                      That&apos;s more than today&apos;s limit allows: {budget!.remaining} will be sent now and the other {expectedEmails - (budget!.remaining ?? 0)} held. Allow more on Admin → Emails first, or send the held ones later.
+                    </p>
+                  )}
+                  {expectedEmails > 0 && (
+                    <label className="flex items-center gap-2 font-medium">
+                      <input type="checkbox" checked={confirmedEmails} onChange={(e) => setConfirmedEmails(e.target.checked)} className="h-4 w-4 accent-[#ff7400]" />
+                      Yes, send {expectedEmails} email{expectedEmails === 1 ? "" : "s"}
+                    </label>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -237,7 +287,9 @@ export function ImportProgressBar({ progress }: { progress: ImportProgress | nul
     ? "Uploading…"
     : progress.phase === "CHECKING"
       ? `Checking rows… ${progress.done} of ${progress.total}`
-      : `Saving… ${progress.done} of ${progress.total}`;
+      : progress.phase === "EMAILING"
+        ? `Sending emails… ${progress.done} of ${progress.total}`
+        : `Saving… ${progress.done} of ${progress.total}`;
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-600">
