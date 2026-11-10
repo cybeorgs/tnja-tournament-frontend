@@ -7,23 +7,34 @@ import { PINCODE_PATTERN } from "@/lib/locations";
 import { Button, Field, Input, cx } from "./ui";
 import { errorMessage } from "./Toast";
 
-// Aadhaar verification through DigiLocker (UIDAI discontinued the Aadhaar OTP API), with the same
-// call limits as the main TNJA site. DigiLocker opens in a popup so the half-filled form is kept.
-// The backend also checks that the pincode on the Aadhaar address and the date of birth on the
-// Aadhaar match the pincode and date of birth entered.
+// Aadhaar verification through DigiLocker (UIDAI discontinued the Aadhaar OTP API). DigiLocker opens
+// in a popup so the half-filled form is kept. The backend also checks that the pincode and the date of
+// birth on the Aadhaar match the ones entered.
 //
-// Every check costs a Sandbox status call. The callback page announces when DigiLocker is done,
-// which triggers the one check that matters; the timer is only a safety net for browsers where that
-// message can't arrive, so it stays quiet while a normal sign-in takes place.
-// Worst case (user abandons): at most 8 checks, from minute 3 to minute 10.
+// Every Sandbox call is billed, so the form asks the backend only when there is a reason to:
+// - the callback page announces that DigiLocker is done (the one check that normally matters);
+// - the popup closes (DigiLocker finished or the student gave up): one check;
+// - "I've finished" (rate limited).
+// The timer is only a safety net for when the popup can't be watched (blocked, or opened from the
+// link): first at 3 minutes, then every 2 minutes, never while the popup is still open.
+// Clicking Verify again first asks /resume (free): after a pincode or date-of-birth mismatch the
+// corrected values are matched against the Aadhaar already fetched, and a popup closed too early
+// reopens the same DigiLocker session, so neither costs a new paid session.
 const FIRST_SAFETY_CHECK_MS = 3 * 60 * 1000;
-const SAFETY_POLL_MS = 60 * 1000;
+const SAFETY_POLL_MS = 2 * 60 * 1000;
 const MAX_WAIT_MS = 10 * 60 * 1000;
 // A callback that lands during a check gets one follow-up check this long after it ends
 // (longer than the backend's 4 s per-session throttle, which would otherwise answer "pending").
 const FOLLOW_UP_CHECK_MS = 5 * 1000;
 // "Check now" clicks closer together than this reuse the last answer instead of calling again.
 const MANUAL_CHECK_GAP_MS = 10 * 1000;
+// How often the (free) popup.closed flag is read.
+const POPUP_WATCH_MS = 1000;
+// After the popup closes, wait this long for the callback's message before checking ourselves.
+const POPUP_CLOSED_CHECK_DELAY_MS = 1500;
+// A popup that "closes" sooner than this after opening was cut off by the browser (e.g. DigiLocker's
+// opener policy), not finished by the student, so it says nothing and the safety net takes over.
+const MIN_REAL_POPUP_MS = 20 * 1000;
 export const DIGILOCKER_CHANNEL = "tnja-tournament-digilocker";
 
 const AADHAAR = /^[2-9]\d{11}$/;
@@ -33,6 +44,10 @@ const DOB = /^\d{4}-\d{2}-\d{2}$/;
 type Status = "idle" | "starting" | "waiting" | "verified";
 type Session = { aadhaarNumber: string; token: string; startedAt: number };
 type CheckResponse = { status: "pending" } | { status: "verified"; aadhaarVerificationToken: string };
+type ResumeResponse =
+  | { status: "new" }
+  | { status: "open"; authorizationUrl: string; digilockerSessionToken: string }
+  | { status: "verified"; aadhaarVerificationToken: string };
 
 export function useAadhaarDigilocker() {
   const [status, setStatus] = useState<Status>("idle");
@@ -40,9 +55,12 @@ export function useAadhaarDigilocker() {
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const [verified, setVerified] = useState<{ aadhaar: string; pincode: string; dob: string; token: string } | null>(null);
   const session = useRef<Session | null>(null);
+  // The last session, kept after it ends (mismatch, cancel, popup closed) so Verify can resume it for free.
+  const lastSession = useRef<Session | null>(null);
   const pincodeRef = useRef("");
   const dobRef = useRef("");
   const popup = useRef<Window | null>(null);
+  const popupOpenedAt = useRef(0);
   const inFlight = useRef(false);
   const checkNowRef = useRef<() => void>(() => {});
 
@@ -55,6 +73,51 @@ export function useAadhaarDigilocker() {
     setStatus("idle");
   }, []);
 
+  const openPopup = (url: string) => {
+    popup.current = window.open(url, "digilocker", "width=520,height=720");
+    popupOpenedAt.current = Date.now();
+  };
+
+  function wait(next: Session, url: string, pincode: string, dob: string) {
+    session.current = next;
+    lastSession.current = next;
+    pincodeRef.current = pincode;
+    dobRef.current = dob;
+    setAuthorizationUrl(url);
+    if (popup.current && !popup.current.closed) {
+      popup.current.location.href = url;
+      popupOpenedAt.current = Date.now();
+    }
+    setStatus("waiting");
+  }
+
+  /** Free: reuses the last session for this Aadhaar. Returns true when it settled the click. */
+  async function resume(aadhaarNumber: string, pincode: string, dob: string): Promise<boolean> {
+    const last = lastSession.current;
+    if (!last || last.aadhaarNumber !== aadhaarNumber || Date.now() - last.startedAt > MAX_WAIT_MS * 3) return false;
+    try {
+      const data = await api<ResumeResponse>("/public/aadhaar/digilocker/resume", { body: { aadhaarNumber, pincode, dob, digilockerSessionToken: last.token } });
+      if (data.status === "verified") {
+        stop("");
+        setVerified({ aadhaar: aadhaarNumber, pincode, dob, token: data.aadhaarVerificationToken });
+        setStatus("verified");
+        return true;
+      }
+      if (data.status === "open") {
+        wait({ aadhaarNumber, token: data.digilockerSessionToken, startedAt: last.startedAt }, data.authorizationUrl, pincode, dob);
+        return true;
+      }
+    } catch (err) {
+      // Still a mismatch with the corrected values: say so, no new session needed.
+      if (err instanceof ApiError && err.status === 400) {
+        stop(err.message);
+        return true;
+      }
+    }
+    lastSession.current = null;
+    return false;
+  }
+
   async function start(aadhaarNumber: string, pincode: string, dob: string) {
     // Each start is a paid Sandbox session: ignore double clicks and clicks while one is open.
     if (inFlight.current || session.current) return;
@@ -63,18 +126,14 @@ export function useAadhaarDigilocker() {
     if (!DOB.test(dob)) return setError("Please enter your date of birth first.");
     // Open the popup synchronously in the click handler so browsers don't block it.
     inFlight.current = true;
-    popup.current = window.open("", "digilocker", "width=520,height=720");
+    openPopup("");
     setStatus("starting");
     setError("");
     setVerified(null);
     try {
+      if (await resume(aadhaarNumber, pincode, dob)) return;
       const data = await api<{ authorizationUrl: string; digilockerSessionToken: string }>("/public/aadhaar/digilocker/start", { body: { aadhaarNumber, pincode, dob } });
-      session.current = { aadhaarNumber, token: data.digilockerSessionToken, startedAt: Date.now() };
-      pincodeRef.current = pincode;
-      dobRef.current = dob;
-      setAuthorizationUrl(data.authorizationUrl);
-      if (popup.current && !popup.current.closed) popup.current.location.href = data.authorizationUrl;
-      setStatus("waiting");
+      wait({ aadhaarNumber, token: data.digilockerSessionToken, startedAt: Date.now() }, data.authorizationUrl, pincode, dob);
     } catch (err) {
       stop(errorMessage(err));
     } finally {
@@ -90,11 +149,16 @@ export function useAadhaarDigilocker() {
     let lastCheckAt = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    const popupOpen = () => !!popup.current && !popup.current.closed;
+
     const schedule = (delay: number) => {
       if (cancelled) return;
       clearTimeout(timer);
-      timer = setTimeout(check, delay);
+      timer = setTimeout(safetyCheck, delay);
     };
+
+    // The student is still in DigiLocker while the popup is open: nothing to ask yet.
+    const safetyCheck = () => (popupOpen() ? schedule(SAFETY_POLL_MS) : check());
 
     const check = async () => {
       const current = session.current;
@@ -123,22 +187,40 @@ export function useAadhaarDigilocker() {
       schedule(delay);
     };
 
+    const checkSoon = () => {
+      if (checking) {
+        followUp = true;
+        return;
+      }
+      clearTimeout(timer);
+      check();
+    };
+
     // The callback page posts here when DigiLocker redirects back: check right away, or once
     // more after the check already in progress (never two at the same time).
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel(DIGILOCKER_CHANNEL);
-      channel.onmessage = () => {
-        if (checking) {
-          followUp = true;
-          return;
-        }
-        clearTimeout(timer);
-        check();
-      };
+      channel.onmessage = checkSoon;
     } catch {
-      // No BroadcastChannel: the slow poll still picks up the result.
+      // No BroadcastChannel: the popup watch and the safety net still pick up the result.
     }
+
+    // Free: notice the popup closing (the callback page closes it, or the student gives up) and check
+    // once, unless the callback's message already triggered a check.
+    let watchedPopup = popupOpen() ? popup.current : null;
+    const watch = setInterval(() => {
+      if (!watchedPopup) {
+        watchedPopup = popupOpen() ? popup.current : null; // reopened with "Open DigiLocker again"
+        return;
+      }
+      if (!watchedPopup.closed) return;
+      watchedPopup = null;
+      if (Date.now() - popupOpenedAt.current < MIN_REAL_POPUP_MS) return;
+      setTimeout(() => {
+        if (!cancelled && !checking && Date.now() - lastCheckAt > POPUP_CLOSED_CHECK_DELAY_MS * 2) checkSoon();
+      }, POPUP_CLOSED_CHECK_DELAY_MS);
+    }, POPUP_WATCH_MS);
 
     checkNowRef.current = () => {
       if (checking || Date.now() - lastCheckAt < MANUAL_CHECK_GAP_MS) return;
@@ -150,6 +232,7 @@ export function useAadhaarDigilocker() {
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearInterval(watch);
       channel?.close();
       checkNowRef.current = () => {};
     };
@@ -166,6 +249,11 @@ export function useAadhaarDigilocker() {
       verified && verified.aadhaar === aadhaar && verified.pincode === pincode && verified.dob === dob ? verified.token : null,
     /** For "I've finished in DigiLocker": checks once now (rate limited) instead of waiting for the timer. */
     checkNow: () => checkNowRef.current(),
+    /** Reopens the same DigiLocker session (free) in a watched popup. */
+    reopen: () => {
+      if (authorizationUrl && !(popup.current && !popup.current.closed)) openPopup(authorizationUrl);
+      else popup.current?.focus();
+    },
     cancel: () => stop(""),
   };
 }
@@ -228,9 +316,9 @@ export function AadhaarDigilockerField({ value, onChange, pincode, dob, digilock
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button className="h-10" onClick={digilocker.checkNow}>I&apos;ve finished</Button>
               {digilocker.authorizationUrl && (
-                <a href={digilocker.authorizationUrl} target="digilocker" rel="noopener" className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-brand hover:underline">
+                <button type="button" onClick={digilocker.reopen} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-brand hover:underline">
                   Open DigiLocker again <ExternalLink size={14} />
-                </a>
+                </button>
               )}
               <Button variant="secondary" className="h-10" onClick={digilocker.cancel}>Cancel</Button>
             </div>
