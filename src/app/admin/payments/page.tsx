@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, Clock, IndianRupee, Search } from "lucide-react";
+import { CheckCircle2, Clock, FileSpreadsheet, FileText, IndianRupee, MapPin, Search, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
+import { downloadFile, openPdf } from "@/lib/api";
+import { errorMessage, useToast } from "@/components/Toast";
 import { categoryLabel, formatDate, formatDateTime, rupees } from "@/lib/format";
 import type { Gender, PaymentStatus, TournamentListItem } from "@/lib/types";
 import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner, cx } from "@/components/ui";
@@ -20,7 +22,7 @@ interface PaymentRow {
   razorpayPaymentId: string | null;
   paidAt: string | null;
   createdAt: string;
-  student: { id: string; studentNo: string | null; fullName: string; phone: string; email: string; club: string };
+  student: { id: string; studentNo: string | null; fullName: string; phone: string; email: string; club: string; district: string };
   tournament: { id: string; title: string; startDate: string };
 }
 
@@ -31,6 +33,9 @@ interface PaymentList {
   pageSize: number;
   summary: { collected: number; paidCount: number; due: number; unpaidCount: number };
 }
+
+interface ReportGroup { entries: number; boys: number; girls: number; paidCount: number; collected: number; unpaidCount: number; due: number }
+interface PaymentReport { totals: ReportGroup; districts: (ReportGroup & { district: string })[] }
 
 const STATUS_TABS: { id: "" | PaymentStatus; label: string }[] = [
   { id: "", label: "All" },
@@ -53,11 +58,28 @@ export default function PaymentsPage() {
     return () => clearTimeout(id);
   }, [q]);
 
-  const params = new URLSearchParams({ page: String(page), pageSize: "50" });
-  if (tournamentId) params.set("tournamentId", tournamentId);
-  if (status) params.set("status", status);
-  if (debounced) params.set("q", debounced);
-  const { data, loading, error } = useApi<PaymentList>(`/payments?${params}`);
+  const filters = new URLSearchParams();
+  if (tournamentId) filters.set("tournamentId", tournamentId);
+  if (status) filters.set("status", status);
+  if (debounced) filters.set("q", debounced);
+  const filterQs = filters.toString();
+  const { data, loading, error } = useApi<PaymentList>(`/payments?page=${page}&pageSize=50${filterQs ? `&${filterQs}` : ""}`);
+  const { data: report } = useApi<PaymentReport>(`/payments/report${filterQs ? `?${filterQs}` : ""}`);
+
+  const toast = useToast();
+  const [exporting, setExporting] = useState<"" | "xlsx" | "pdf">("");
+  async function exportAs(kind: "xlsx" | "pdf") {
+    setExporting(kind);
+    const path = `/payments/export.${kind}${filterQs ? `?${filterQs}` : ""}`;
+    try {
+      if (kind === "xlsx") await downloadFile(path, "payments.xlsx");
+      else await openPdf(path, "download", "payments_report.pdf");
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setExporting("");
+    }
+  }
 
   /** Any filter change goes back to the first page. */
   const filter = (change: () => void) => {
@@ -69,13 +91,27 @@ export default function PaymentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Payments" subtitle="Entry fees for tournament registrations." />
+      <PageHeader
+        title="Payments"
+        subtitle="Entry fees for tournament registrations."
+        actions={
+          <>
+            <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting === "xlsx"} disabled={!!exporting} onClick={() => exportAs("xlsx")}>Excel</Button>
+            <Button variant="secondary" icon={<FileText size={16} />} loading={exporting === "pdf"} disabled={!!exporting} onClick={() => exportAs("pdf")}>PDF</Button>
+          </>
+        }
+      />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<IndianRupee size={18} />} tone="text-emerald-600" label="Collected" value={s ? rupees(s.collected) : "—"} />
         <Stat icon={<CheckCircle2 size={18} />} label="Paid entries" value={s?.paidCount ?? "—"} />
         <Stat icon={<IndianRupee size={18} />} tone="text-amber-600" label="Due" value={s ? rupees(s.due) : "—"} />
         <Stat icon={<Clock size={18} />} label="Unpaid entries" value={s?.unpaidCount ?? "—"} />
+      </div>
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <Stat icon={<Users size={18} />} label="Entries (filtered)" value={report?.totals.entries ?? "—"} />
+        <Stat icon={<Users size={18} />} tone="text-blue-600" label="Boys" value={report?.totals.boys ?? "—"} />
+        <Stat icon={<Users size={18} />} tone="text-pink-600" label="Girls" value={report?.totals.girls ?? "—"} />
       </div>
 
       <Card>
@@ -150,6 +186,7 @@ export default function PaymentsPage() {
                       <td className="px-5 py-3">
                         <p className="font-semibold text-slate-800">{r.student.fullName}</p>
                         <p className="text-xs text-slate-400">{[r.student.studentNo, r.student.phone].filter(Boolean).join(" · ")}</p>
+                        {r.student.district && <p className="text-xs text-slate-400">{r.student.district}</p>}
                       </td>
                       <td className="px-5 py-3 text-slate-600">
                         {r.tournament.title}
@@ -182,7 +219,65 @@ export default function PaymentsPage() {
           </>
         )}
       </Card>
+
+      {report && report.districts.length > 0 && <DistrictReport report={report} />}
     </div>
+  );
+}
+
+function DistrictReport({ report }: { report: PaymentReport }) {
+  const t = report.totals;
+  return (
+    <Card className="mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+        <h2 className="flex items-center gap-2 font-semibold text-slate-800"><MapPin size={16} className="text-brand" /> District-wise report</h2>
+        <span className="text-xs text-slate-400">Uses the filters above · {report.districts.length} districts</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="px-5 py-3">District</th>
+              <th className="px-3 py-3 text-right">Entries</th>
+              <th className="px-3 py-3 text-right">Boys</th>
+              <th className="px-3 py-3 text-right">Girls</th>
+              <th className="px-3 py-3 text-right">Paid</th>
+              <th className="px-3 py-3 text-right">Collected</th>
+              <th className="px-3 py-3 text-right">Unpaid</th>
+              <th className="px-5 py-3 text-right">Due</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 tabular-nums">
+            {report.districts.map((d) => (
+              <tr key={d.district} className="hover:bg-brand-soft/40">
+                <td className="px-5 py-2.5 font-medium text-slate-800">{d.district}</td>
+                <GroupCells g={d} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t-2 border-slate-200 bg-slate-50/80 font-bold tabular-nums text-slate-900">
+            <tr>
+              <td className="px-5 py-3">Total</td>
+              <GroupCells g={t} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function GroupCells({ g }: { g: ReportGroup }) {
+  return (
+    <>
+      <td className="px-3 py-2.5 text-right">{g.entries}</td>
+      <td className="px-3 py-2.5 text-right text-blue-600">{g.boys}</td>
+      <td className="px-3 py-2.5 text-right text-pink-600">{g.girls}</td>
+      <td className="px-3 py-2.5 text-right">{g.paidCount}</td>
+      <td className="px-3 py-2.5 text-right text-emerald-600">{rupees(g.collected)}</td>
+      <td className="px-3 py-2.5 text-right">{g.unpaidCount}</td>
+      <td className="px-5 py-2.5 text-right text-amber-600">{rupees(g.due)}</td>
+    </>
   );
 }
 
