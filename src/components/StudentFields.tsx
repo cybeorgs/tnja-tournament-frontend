@@ -103,7 +103,7 @@ export function validateStudent(f: StudentInput): string | null {
 }
 
 const GENDERS = [{ value: "MALE", label: "Male" }, { value: "FEMALE", label: "Female" }];
-const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "B+ve", "B-ve", "AB+ve", "AB-ve"];
+const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "A1+ve", "B+ve", "B-ve", "AB+ve", "AB-ve"];
 const STANDARDS = Array.from({ length: 12 }, (_, i) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"} Standard`);
 const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
 const EMPLOYMENT_TYPES = [{ value: "PRIVATE", label: "Private" }, { value: "GOVERNMENT", label: "Government" }, { value: "SELF_EMPLOYED", label: "Self-employed" }, { value: "OTHER", label: "Other" }];
