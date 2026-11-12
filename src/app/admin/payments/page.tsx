@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, Clock, FileSpreadsheet, FileText, IndianRupee, MapPin, Search, Users } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, FileSpreadsheet, GraduationCap, FileText, IndianRupee, MapPin, Search, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
 import { downloadFile, openPdf } from "@/lib/api";
 import { errorMessage, useToast } from "@/components/Toast";
@@ -22,7 +22,7 @@ interface PaymentRow {
   razorpayPaymentId: string | null;
   paidAt: string | null;
   createdAt: string;
-  student: { id: string; studentNo: string | null; fullName: string; phone: string; email: string; club: string; district: string };
+  student: { id: string; studentNo: string | null; fullName: string; phone: string; email: string; club: string; district: string; participantType: string };
   tournament: { id: string; title: string; startDate: string };
 }
 
@@ -34,7 +34,7 @@ interface PaymentList {
   summary: { collected: number; paidCount: number; due: number; unpaidCount: number };
 }
 
-interface ReportGroup { entries: number; boys: number; girls: number; paidCount: number; collected: number; unpaidCount: number; due: number }
+interface ReportGroup { entries: number; boys: number; girls: number; students: number; professionals: number; paidCount: number; collected: number; unpaidCount: number; due: number }
 interface PaymentReport { totals: ReportGroup; districts: (ReportGroup & { district: string })[] }
 
 const STATUS_TABS: { id: "" | PaymentStatus; label: string }[] = [
@@ -108,10 +108,12 @@ export default function PaymentsPage() {
         <Stat icon={<IndianRupee size={18} />} tone="text-amber-600" label="Due" value={s ? rupees(s.due) : "—"} />
         <Stat icon={<Clock size={18} />} label="Unpaid entries" value={s?.unpaidCount ?? "—"} />
       </div>
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat icon={<Users size={18} />} label="Entries (filtered)" value={report?.totals.entries ?? "—"} />
         <Stat icon={<Users size={18} />} tone="text-blue-600" label="Boys" value={report?.totals.boys ?? "—"} />
         <Stat icon={<Users size={18} />} tone="text-pink-600" label="Girls" value={report?.totals.girls ?? "—"} />
+        <Stat icon={<GraduationCap size={18} />} tone="text-indigo-600" label="Students" value={report?.totals.students ?? "—"} />
+        <Stat icon={<Briefcase size={18} />} tone="text-teal-600" label="Working professionals" value={report?.totals.professionals ?? "—"} />
       </div>
 
       <Card>
@@ -155,7 +157,7 @@ export default function PaymentsPage() {
                 <li key={r.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-800">{r.student.fullName}</p>
+                      <p className="truncate font-semibold text-slate-800">{r.student.fullName}{r.student.participantType === "PROFESSIONAL" && <ProTag />}</p>
                       <p className="truncate text-xs text-slate-500">{r.tournament.title}</p>
                       <p className="text-xs text-slate-400">{categoryLabel(r)}</p>
                     </div>
@@ -184,7 +186,10 @@ export default function PaymentsPage() {
                   {data.items.map((r) => (
                     <tr key={r.id} className="align-top hover:bg-brand-soft/40">
                       <td className="px-5 py-3">
-                        <p className="font-semibold text-slate-800">{r.student.fullName}</p>
+                        <p className="font-semibold text-slate-800">
+                          {r.student.fullName}
+                          {r.student.participantType === "PROFESSIONAL" && <ProTag />}
+                        </p>
                         <p className="text-xs text-slate-400">{[r.student.studentNo, r.student.phone].filter(Boolean).join(" · ")}</p>
                         {r.student.district && <p className="text-xs text-slate-400">{r.student.district}</p>}
                       </td>
@@ -241,6 +246,8 @@ function DistrictReport({ report }: { report: PaymentReport }) {
               <th className="px-3 py-3 text-right">Entries</th>
               <th className="px-3 py-3 text-right">Boys</th>
               <th className="px-3 py-3 text-right">Girls</th>
+              <th className="px-3 py-3 text-right">Students</th>
+              <th className="px-3 py-3 text-right">Professionals</th>
               <th className="px-3 py-3 text-right">Paid</th>
               <th className="px-3 py-3 text-right">Collected</th>
               <th className="px-3 py-3 text-right">Unpaid</th>
@@ -273,6 +280,8 @@ function GroupCells({ g }: { g: ReportGroup }) {
       <td className="px-3 py-2.5 text-right">{g.entries}</td>
       <td className="px-3 py-2.5 text-right text-blue-600">{g.boys}</td>
       <td className="px-3 py-2.5 text-right text-pink-600">{g.girls}</td>
+      <td className="px-3 py-2.5 text-right text-indigo-600">{g.students}</td>
+      <td className="px-3 py-2.5 text-right text-teal-600">{g.professionals}</td>
       <td className="px-3 py-2.5 text-right">{g.paidCount}</td>
       <td className="px-3 py-2.5 text-right text-emerald-600">{rupees(g.collected)}</td>
       <td className="px-3 py-2.5 text-right">{g.unpaidCount}</td>
@@ -288,4 +297,8 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
       <p className={cx("mt-1.5 text-xl font-bold", tone ?? "text-slate-900")}>{value}</p>
     </Card>
   );
+}
+
+function ProTag() {
+  return <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 align-middle text-[10px] font-semibold text-teal-700">Working professional</span>;
 }
