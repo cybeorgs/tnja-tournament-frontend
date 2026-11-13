@@ -129,7 +129,10 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
     setStudent((s) => ({
       ...s,
       participantType,
+      // One pincode: the permanent address's (the form has no second pincode box).
       residingPincode: match.pincode,
+      pincode: match.pincode,
+      state: match.inTamilNadu ? "Tamil Nadu" : match.state || "",
       outsideTamilNadu: !match.inTamilNadu,
       isBPL: false,
       district: match.district,
