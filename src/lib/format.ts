@@ -42,6 +42,10 @@ export const PLACEMENT_LABEL: Record<Placement, string> = {
   PARTICIPATION: "Participant",
 };
 
+/** "Chennai (district)" or "Police (unit)"; "" when not given. */
+export const representingLabel = (s: { representing?: string; representingDistrict?: string; representingUnit?: string }) =>
+  s.representing === "UNIT" ? `${s.representingUnit} (unit)` : s.representing === "DISTRICT" ? `${s.representingDistrict} (district)` : "";
+
 export const GENDER_LABEL: Record<string, string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
 
 export const titleCase = (s: string) => s.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

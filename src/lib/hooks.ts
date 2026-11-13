@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { api } from "./api";
-import type { Meta, Settings } from "./types";
+import type { Meta, Settings, Unit } from "./types";
 
 /** Load JSON from the API; `reload` refetches. Data from the previous load stays visible while reloading. */
 export function useApi<T>(path: string | null) {
@@ -27,6 +27,17 @@ export function useApi<T>(path: string | null) {
   }, []);
 
   return { data: result.data, setData, error: result.error, loading: !!key && result.key !== key, reload };
+}
+
+/** Units a player can represent (Admin → Settings → Units), for the registration form. */
+export function useUnits() {
+  const [units, setUnits] = useState<Unit[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api<Unit[]>("/public/units").then((u) => !cancelled && setUnits(u)).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return units;
 }
 
 let metaCache: Meta | null = null;

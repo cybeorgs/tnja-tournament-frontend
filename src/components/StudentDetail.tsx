@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CheckCircle2, Clock, FileText, History, Lock, XCircle } from "lucide-react";
 import { api, fetchObjectUrl } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { GENDER_LABEL, formatDate, rupees, titleCase } from "@/lib/format";
+import { GENDER_LABEL, formatDate, representingLabel, rupees, titleCase } from "@/lib/format";
 import { EMPLOYMENT_TYPE_LABEL, type StudentDetail as Detail } from "@/lib/types";
 import { Badge, Button, EmptyState, Modal, Spinner, Textarea } from "./ui";
 import { PaymentBadge } from "./Payment";
@@ -79,6 +79,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
         <Item label="District" value={s.district} />
         <Item label="Taluk" value={s.taluk} />
         <Item label="Residing pincode" value={s.residingPincode} />
+        <Item label="Representing" value={representingLabel(s)} />
         <Item label="Permanent address" value={[s.address, s.city, s.state, s.pincode].filter(Boolean).join(", ")} wide />
       </Group>
 

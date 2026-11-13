@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Briefcase, Camera, Check, ClipboardList, GraduationCap, Home, Loader2, Lock, MapPin, Medal, UserRound, Wallet } from "lucide-react";
-import type { Gender, ParticipantType, Student, StudentGender } from "@/lib/types";
+import { Briefcase, Camera, Check, ClipboardList, Flag, GraduationCap, Home, Loader2, Lock, Medal, UserRound, Wallet } from "lucide-react";
+import type { Gender, ParticipantType, Representing, Student, StudentGender } from "@/lib/types";
+import { useUnits } from "@/lib/hooks";
 import { toDateInput } from "@/lib/format";
 import { lookupPincode, pincodeProblem, useLocations } from "@/lib/locations";
 import { emailProblem } from "@/lib/email";
@@ -19,6 +20,8 @@ import { EmailOtpField, type EmailOtp } from "./EmailOtpField";
  */
 export type StudentInput = {
   residingPincode: string; outsideTamilNadu: boolean; district: string; taluk: string;
+  /** Who they play for in the overall championship: a district (any, not only where they live) or a unit */
+  representing: Representing | ""; representingDistrict: string; representingUnit: string;
   fullName: string; fatherName: string; motherName: string; gender: StudentGender | ""; dob: string;
   bloodGroup: string; aadhaarNumber: string; phone: string; alternatePhone: string; parentPhone: string; emergencyPhone: string; email: string; nationality: string;
   address: string; city: string; state: string; pincode: string;
@@ -34,6 +37,7 @@ export type StudentInput = {
 
 export const emptyStudent: StudentInput = {
   residingPincode: "", outsideTamilNadu: false, district: "", taluk: "",
+  representing: "", representingDistrict: "", representingUnit: "",
   fullName: "", fatherName: "", motherName: "", gender: "", dob: "",
   bloodGroup: "", aadhaarNumber: "", phone: "", alternatePhone: "", parentPhone: "", emergencyPhone: "", email: "", nationality: "Indian",
   address: "", city: "", state: "Tamil Nadu", pincode: "",
@@ -47,9 +51,10 @@ export const emptyStudent: StudentInput = {
 
 export const fromStudent = (s: Student): StudentInput => ({
   residingPincode: s.residingPincode, outsideTamilNadu: s.outsideTamilNadu, district: s.district, taluk: s.taluk,
+  representing: s.representing ?? "", representingDistrict: s.representingDistrict ?? "", representingUnit: s.representingUnit ?? "",
   fullName: s.fullName, fatherName: s.fatherName, motherName: s.motherName, gender: s.gender, dob: toDateInput(s.dob),
   bloodGroup: s.bloodGroup, aadhaarNumber: s.aadhaarNumber ?? "", phone: s.phone, alternatePhone: s.alternatePhone, parentPhone: s.parentPhone ?? "", emergencyPhone: s.emergencyPhone ?? "", email: s.email, nationality: s.nationality || "Indian",
-  address: s.address, city: s.city, state: s.state || "Tamil Nadu", pincode: s.pincode,
+  address: s.address, city: s.city, state: s.state || "Tamil Nadu", pincode: s.residingPincode || s.pincode,
   annualIncome: s.annualIncome === null ? "" : String(s.annualIncome), isBPL: s.isBPL,
   participantType: s.participantType ?? "STUDENT",
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
@@ -90,7 +95,10 @@ export function validateStudent(f: StudentInput): string | null {
   ];
   const gap = missing.find(([k]) => !String(f[k]).trim());
   if (gap) return `Please fill in the ${gap[1]}.`;
-  const pinProblem = pincodeProblem(f.residingPincode, "Location pincode") ?? pincodeProblem(f.pincode, "Address pincode");
+  if (!f.representing) return "Choose whether you represent a district or a unit.";
+  if (f.representing === "DISTRICT" && !f.representingDistrict) return "Choose the district you represent.";
+  if (f.representing === "UNIT" && !f.representingUnit) return "Choose the unit you represent.";
+  const pinProblem = pincodeProblem(f.residingPincode, "Pincode");
   if (pinProblem) return pinProblem;
   if (!/^\d{12}$/.test(f.aadhaarNumber)) return "Aadhaar number must be 12 digits.";
   if (!MOBILE.test(f.phone)) return "Enter a valid 10-digit mobile number.";
@@ -107,6 +115,7 @@ const BLOOD_GROUPS = ["O+ve", "O-ve", "A+ve", "A-ve", "A1+ve", "B+ve", "B-ve", "
 const STANDARDS = Array.from({ length: 12 }, (_, i) => `${i + 1}${["st", "nd", "rd"][i] ?? "th"} Standard`);
 const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year"];
 const EMPLOYMENT_TYPES = [{ value: "PRIVATE", label: "Private" }, { value: "GOVERNMENT", label: "Government" }, { value: "SELF_EMPLOYED", label: "Self-employed" }, { value: "OTHER", label: "Other" }];
+const REPRESENTING = [{ value: "DISTRICT", label: "District" }, { value: "UNIT", label: "Unit" }];
 const PARTICIPANT_TYPES = [{ value: "STUDENT", label: "Student" }, { value: "PROFESSIONAL", label: "Working professional" }];
 
 const digits = (v: string, max: number) => v.replace(/\D/g, "").slice(0, max);
@@ -137,6 +146,7 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
 }) {
   const setDoc = <K extends keyof StudentDocs>(k: K, v: StudentDocs[K]) => docs && onDocsChange?.({ ...docs, [k]: v });
   const locations = useLocations();
+  const units = useUnits();
   const set = <K extends keyof StudentInput>(k: K, v: StudentInput[K]) => onChange({ ...value, [k]: v });
   const taluks = locations.find((d) => d.district === value.district)?.taluks ?? [];
   const pincode = usePincodeFill(value, onChange);
@@ -161,7 +171,10 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
         </Field>
       </Section>
 
-      <Section icon={<MapPin />} title="Location">
+      <Section icon={<Home />} title="Permanent address" subtitle="As on your Aadhaar">
+        <Field label="Street address" required className="sm:col-span-2 lg:col-span-3">
+          <Input placeholder="Door no, street, area" value={value.address} onChange={(e) => set("address", e.target.value.replace(/[^a-zA-Z0-9\s,.'/#-]/g, ""))} />
+        </Field>
         <Field
           label="Pincode"
           required
@@ -174,7 +187,7 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
             ) : undefined
           }
         >
-          <Input inputMode="numeric" placeholder="e.g. 641001" value={value.residingPincode} onChange={(e) => set("residingPincode", digits(e.target.value, 6))} aria-invalid={!!pincode?.error} />
+          <Input inputMode="numeric" placeholder="e.g. 641001" value={value.residingPincode} onChange={(e) => { const pin = digits(e.target.value, 6); onChange({ ...value, residingPincode: pin, pincode: pin }); }} aria-invalid={!!pincode?.error} />
         </Field>
         {value.outsideTamilNadu ? (
           <>
@@ -201,6 +214,12 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
             </Field>
           </>
         )}
+        <Field label="City / town" required>
+          <Input value={value.city} onChange={(e) => set("city", letters(e.target.value))} />
+        </Field>
+        <Field label="State" required>
+          <Input value={value.state} onChange={(e) => set("state", letters(e.target.value))} />
+        </Field>
         {value.outsideTamilNadu && docs && (
           <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:col-span-2 lg:col-span-3">
             <p className="text-sm text-amber-900">
@@ -217,6 +236,40 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
               </Field>
             </div>
           </div>
+        )}
+      </Section>
+
+      <Section icon={<Flag />} title="Representing">
+        <Field label="I represent" required group hint="Your medals count for this district or unit in the overall championship.">
+          <Segmented
+            value={value.representing}
+            options={REPRESENTING}
+            onChange={(r) => onChange({
+              ...value,
+              representing: r as Representing,
+              // Start from the district they live in; they can pick another.
+              representingDistrict: r === "DISTRICT" ? value.representingDistrict || (value.outsideTamilNadu ? "" : value.district) : "",
+              representingUnit: r === "UNIT" ? value.representingUnit : "",
+            })}
+          />
+        </Field>
+        {value.representing === "DISTRICT" && (
+          <Field label="District" required>
+            <Select value={value.representingDistrict} onChange={(e) => set("representingDistrict", e.target.value)}>
+              <option value="">Select</option>
+              {locations.map((d) => <option key={d.district}>{d.district}</option>)}
+            </Select>
+          </Field>
+        )}
+        {value.representing === "UNIT" && (
+          <Field label="Unit" required hint={units.length ? undefined : "No units have been added yet."}>
+            <Select value={value.representingUnit} onChange={(e) => set("representingUnit", e.target.value)} disabled={!units.length}>
+              <option value="">Select</option>
+              {/* A saved unit that has since been removed still shows, so the record isn't silently changed */}
+              {value.representingUnit && !units.some((u) => u.name === value.representingUnit) && <option>{value.representingUnit}</option>}
+              {units.map((u) => <option key={u.id}>{u.name}</option>)}
+            </Select>
+          </Field>
         )}
       </Section>
 
@@ -283,21 +336,6 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
           </div>
         </Section>
       )}
-
-      <Section icon={<Home />} title="Permanent address">
-        <Field label="Street address" required className="sm:col-span-2 lg:col-span-3">
-          <Input placeholder="Door no, street, area" value={value.address} onChange={(e) => set("address", e.target.value.replace(/[^a-zA-Z0-9\s,.'/#-]/g, ""))} />
-        </Field>
-        <Field label="City" required>
-          <Input value={value.city} onChange={(e) => set("city", letters(e.target.value))} />
-        </Field>
-        <Field label="State" required>
-          <Input value={value.state} onChange={(e) => set("state", letters(e.target.value))} />
-        </Field>
-        <Field label="Pincode" required>
-          <Input inputMode="numeric" placeholder="6 digits" value={value.pincode} onChange={(e) => set("pincode", digits(e.target.value, 6))} />
-        </Field>
-      </Section>
 
       <Section icon={<Wallet />} title={professional ? "Income" : "Family income"}>
         <Field label="Annual income" required>
@@ -401,12 +439,13 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
   );
 }
 
-function Section({ icon, title, optional, children }: { icon: ReactNode; title: string; optional?: boolean; children: ReactNode }) {
+function Section({ icon, title, subtitle, optional, children }: { icon: ReactNode; title: string; subtitle?: string; optional?: boolean; children: ReactNode }) {
   return (
     <section>
       <div className="mb-4 flex items-center gap-2.5">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-soft text-brand [&_svg]:h-4 [&_svg]:w-4">{icon}</span>
         <h3 className="font-semibold text-slate-900">{title}</h3>
+        {subtitle && <span className="text-xs text-slate-400">{subtitle}</span>}
         {optional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>}
       </div>
       <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
@@ -466,13 +505,13 @@ function usePincodeFill(value: StudentInput, onChange: (v: StudentInput) => void
       .then((m) => {
         if (cancelled) return;
         if (!m.inTamilNadu) {
-          latest.current.onChange({ ...latest.current.value, outsideTamilNadu: true, isBPL: false, district: m.district, taluk: "" });
+          latest.current.onChange({ ...latest.current.value, outsideTamilNadu: true, isBPL: false, district: m.district, taluk: "", state: m.state || "" });
           const place = [m.district, m.state].filter(Boolean).join(", ");
           setResult({ pincode, text: place ? `${place} — outside Tamil Nadu` : "Outside Tamil Nadu — enter your district" });
           return;
         }
         const onlyTaluk = m.taluks.length === 1 ? m.taluks[0]! : "";
-        latest.current.onChange({ ...latest.current.value, outsideTamilNadu: false, district: m.district, taluk: onlyTaluk });
+        latest.current.onChange({ ...latest.current.value, outsideTamilNadu: false, district: m.district, taluk: onlyTaluk, state: "Tamil Nadu" });
         // No district: not in the India Post directory, or not placed in a district. The student picks it.
         setResult({ pincode, text: !m.district ? "Tamil Nadu — pick your district and taluk" : onlyTaluk ? `${m.district}, ${onlyTaluk}` : `${m.district} — pick your taluk` });
       })

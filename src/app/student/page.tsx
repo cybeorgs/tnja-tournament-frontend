@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Ticket, Trophy, XCircle } from "lucide-react";
 import { PASSWORD_HINT, passwordProblem, studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
-import { formatDate, formatDateRange, rupees, titleCase } from "@/lib/format";
+import { formatDate, formatDateRange, representingLabel, rupees, titleCase } from "@/lib/format";
 import { EMPLOYMENT_TYPE_LABEL, type Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
@@ -227,7 +227,7 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
     { title: "Contact", rows: [["Mobile", s.phone], [s.participantType === "PROFESSIONAL" ? "Emergency contact" : "Parent / emergency contact", s.parentPhone || s.emergencyPhone], ["Email", s.email]] },
     {
       title: "Address",
-      rows: [["Address", s.address], ["City", s.city], ["State", s.state], ["Pincode", s.pincode], ["District", s.district], ["Taluk", s.taluk], ["Residing pincode", s.residingPincode]],
+      rows: [["Address", s.address], ["City", s.city], ["State", s.state], ["Pincode", s.pincode], ["District", s.district], ["Taluk", s.taluk], ["Residing pincode", s.residingPincode], ["Representing", representingLabel(s)]],
     },
     s.participantType === "PROFESSIONAL"
       ? {

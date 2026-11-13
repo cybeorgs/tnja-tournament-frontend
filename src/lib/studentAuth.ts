@@ -90,6 +90,9 @@ export interface MyStudent {
   residingPincode: string;
   district: string;
   taluk: string;
+  representing: string;
+  representingDistrict: string;
+  representingUnit: string;
   address: string;
   city: string;
   state: string;

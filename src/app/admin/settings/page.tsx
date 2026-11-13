@@ -8,6 +8,7 @@ import type { Settings } from "@/lib/types";
 import { Button, Card, Field, Input, PageHeader, Spinner } from "@/components/ui";
 import { brandLogo } from "@/components/Brand";
 import { errorMessage, useToast } from "@/components/Toast";
+import { UnitsCard } from "@/components/UnitsCard";
 
 type SettingsForm = Omit<Settings, "hasLogo" | "customLogo" | "updatedAt">;
 
@@ -122,6 +123,8 @@ export default function SettingsPage() {
           </div>
         </form>
       </Card>
+
+      <UnitsCard />
     </div>
   );
 }

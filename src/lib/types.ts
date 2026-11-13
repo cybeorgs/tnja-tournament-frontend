@@ -87,6 +87,14 @@ export interface TournamentDetail extends Tournament {
 }
 
 export type ParticipantType = "STUDENT" | "PROFESSIONAL";
+export type Representing = "DISTRICT" | "UNIT";
+
+export interface Unit {
+  id: string;
+  name: string;
+  /** Admin list only: players representing it */
+  players?: number;
+}
 export const PARTICIPANT_TYPE_LABEL: Record<ParticipantType, string> = { STUDENT: "Student", PROFESSIONAL: "Working professional" };
 export const EMPLOYMENT_TYPE_LABEL: Record<string, string> = { PRIVATE: "Private", GOVERNMENT: "Government", SELF_EMPLOYED: "Self-employed", OTHER: "Other" };
 
@@ -112,6 +120,10 @@ export interface Student {
   phone: string;
   taluk: string;
   residingPincode: string;
+  /** Who they play for (overall championship): a district or a unit from Admin → Settings → Units. "" on older records. */
+  representing: Representing | "";
+  representingDistrict: string;
+  representingUnit: string;
   bloodGroup: string;
   aadhaarNumber: string | null;
   alternatePhone: string;
