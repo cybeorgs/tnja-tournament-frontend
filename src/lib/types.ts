@@ -20,8 +20,6 @@ export interface Settings {
   /** false while the built-in TNJA logo is used */
   customLogo?: boolean;
   updatedAt: string;
-  /** Public settings only: self-registration asks for Aadhaar verification through DigiLocker */
-  aadhaarVerification?: boolean;
   /** Public settings only: entry fees can be paid online (Razorpay) */
   onlinePayment?: boolean;
 }

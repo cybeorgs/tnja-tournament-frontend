@@ -12,10 +12,9 @@ import { PublicShell } from "@/components/PublicShell";
 import { TournamentPicker, TournamentSummary, useOpenTournaments } from "@/components/OpenTournaments";
 import { StudentFields, emptyDocs, emptyStudent, validateDocs, validateStudent, type StudentDocs, type StudentInput } from "@/components/StudentFields";
 import { EntryDone, ErrorText, EventsPicker, emptyEvents, eventsProblem, type Entry, type EventsValue } from "@/components/TournamentEntry";
-import { useAadhaarDigilocker } from "@/components/AadhaarDigilocker";
 import { FeeTotal } from "@/components/Payment";
 import { useEmailOtp } from "@/components/EmailOtpField";
-import { useMeta, useSettings } from "@/lib/hooks";
+import { useMeta } from "@/lib/hooks";
 import { competitionAge, eligibleAgeGroups } from "@/lib/categories";
 import { errorMessage } from "@/components/Toast";
 
@@ -103,10 +102,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
   const [student, setStudent] = useState<StudentInput>({ ...emptyStudent, gender: lockGender ?? "" });
   const [docs, setDocs] = useState<StudentDocs>(emptyDocs);
   const [agreed, setAgreed] = useState(false);
-  const digilocker = useAadhaarDigilocker();
   const emailOtp = useEmailOtp();
-  // The backend turns DigiLocker verification on only when it has Sandbox credentials.
-  const needAadhaarCheck = !!useSettings().data?.aadhaarVerification;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [events, setEvents] = useState<EventsValue>({ ...emptyEvents, competeAs: lockGender ?? "" });
@@ -147,7 +143,6 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
     const problem =
       validateStudent(s) ??
       validateDocs(s, docs) ??
-      (needAadhaarCheck && !digilocker.tokenFor(s.aadhaarNumber, s.residingPincode, s.dob) ? "Please verify your Aadhaar with DigiLocker (it checks your pincode and date of birth)." : null) ??
       (!emailOtp.tokenFor(s.email) ? "Please verify your email — click Verify and enter the code we send." : null) ??
       (asksEvents && age !== null && !eligible.length ? "There is no event in this tournament for your age." : null) ??
       (asksEvents ? eventsProblem(eventsValue, eligible, s.gender === "OTHER" && !lockGender) : null) ??
@@ -162,7 +157,6 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
           ...s,
           agreedToTerms: true,
           emailVerificationToken: emailOtp.tokenFor(s.email),
-          aadhaarVerificationToken: digilocker.tokenFor(s.aadhaarNumber, s.residingPincode, s.dob) ?? undefined,
           photo: docs.photo,
           ...(s.outsideTamilNadu ? { nativityProof: docs.nativityProof, nativityProofLabel: docs.nativityProofLabel } : s.isBPL ? { bplProof: docs.bplProof } : {}),
           ...(asksEvents
@@ -203,7 +197,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
 
           {step.kind === "details" && (
             <form onSubmit={register} noValidate>
-              <StudentFields publicForm value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} digilocker={needAadhaarCheck ? digilocker : undefined} docs={docs} onDocsChange={setDocs} />
+              <StudentFields publicForm value={student} onChange={setStudent} lockGender={lockGender} emailOtp={emailOtp} docs={docs} onDocsChange={setDocs} />
               <div className="mt-8">
                 {asksEvents ? (
                   <div className="space-y-4">

@@ -8,7 +8,6 @@ import { toDateInput } from "@/lib/format";
 import { lookupPincode, pincodeProblem, useLocations } from "@/lib/locations";
 import { emailProblem } from "@/lib/email";
 import { DateInput, Field, Input, Select, cx } from "./ui";
-import { AadhaarDigilockerField, type AadhaarDigilocker } from "./AadhaarDigilocker";
 import { DocumentUpload } from "./DocumentUpload";
 import { PhotoUpload } from "./PhotoUpload";
 import { BeltSelect } from "./BeltSelect";
@@ -128,7 +127,7 @@ function ageFrom(dob: string): number | null {
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, lockType, emailOtp, digilocker, docs, onDocsChange, publicForm }: {
+export function StudentFields({ value, onChange, lockGender, lockType, emailOtp, docs, onDocsChange, publicForm }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
@@ -138,8 +137,6 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
   publicForm?: boolean;
   /** Shows a Verify button next to the email (public registration) */
   emailOtp?: EmailOtp;
-  /** Require the Aadhaar to be verified with DigiLocker, its pincode matching the residing pincode (public registration) */
-  digilocker?: AadhaarDigilocker;
   /** Ask for BPL proof / proof of nativity (public registration) */
   docs?: StudentDocs;
   onDocsChange?: (d: StudentDocs) => void;
@@ -302,13 +299,9 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
         <Field label="Nationality" required>
           <Input value={value.nationality} onChange={(e) => set("nationality", letters(e.target.value))} />
         </Field>
-        {digilocker ? (
-          <AadhaarDigilockerField value={value.aadhaarNumber} onChange={(v) => set("aadhaarNumber", v)} pincode={value.residingPincode} dob={value.dob} digilocker={digilocker} className="sm:col-span-2 lg:col-span-3" />
-        ) : (
-          <Field label="Aadhaar number" required>
-            <Input inputMode="numeric" placeholder="12 digits" value={value.aadhaarNumber} onChange={(e) => set("aadhaarNumber", digits(e.target.value, 12))} className="tracking-wide" />
-          </Field>
-        )}
+        <Field label="Aadhaar number" required>
+          <Input inputMode="numeric" placeholder="12 digits" value={value.aadhaarNumber} onChange={(e) => set("aadhaarNumber", digits(e.target.value, 12))} className="tracking-wide" />
+        </Field>
         <Field label="Mobile" required>
           <PhoneInput value={value.phone} onChange={(v) => set("phone", v)} />
         </Field>
