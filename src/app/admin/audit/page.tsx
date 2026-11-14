@@ -7,7 +7,7 @@ import type { Paged } from "@/lib/types";
 import { Button, Card, EmptyState, Input, PageHeader, Spinner, cx } from "@/components/ui";
 import { ACTION, AuditTimeline, type AuditAction, type AuditEntry } from "@/components/AuditLog";
 
-const FILTERS: ("" | AuditAction)[] = ["", "UPDATED", "CREATED", "APPROVED", "REJECTED", "DELETED"];
+const FILTERS: ("" | AuditAction)[] = ["", "UPDATED", "CREATED", "APPROVED", "REJECTED", "DELETED", "PAYMENT", "ENTRY_REMOVED"];
 
 /** Every change ever made to a student record, newest first. Read-only: entries can never be changed. */
 export default function AuditLogPage() {
@@ -33,7 +33,7 @@ export default function AuditLogPage() {
         title="Audit log"
         subtitle={
           <span className="inline-flex items-center gap-1.5">
-            <Lock size={13} className="text-slate-400" /> Every change to a student record, with the exact time. Permanent — entries can&apos;t be edited or deleted.
+            <Lock size={13} className="text-slate-400" /> Every change to a student record and their entry payments, with the exact time. Permanent — entries can&apos;t be edited or deleted.
           </span>
         }
       />

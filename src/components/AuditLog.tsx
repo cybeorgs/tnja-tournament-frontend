@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, Pencil, Trash2, UserPlus, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, IndianRupee, MinusCircle, Pencil, Trash2, UserPlus, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatDateTime } from "@/lib/format";
 import { cx } from "./ui";
 
-export type AuditAction = "CREATED" | "UPDATED" | "APPROVED" | "REJECTED" | "DELETED";
+export type AuditAction = "CREATED" | "UPDATED" | "APPROVED" | "REJECTED" | "DELETED" | "PAYMENT" | "ENTRY_REMOVED";
 
 /** One entry of the permanent student audit log (written by the server, never editable). */
 export interface AuditEntry {
@@ -27,6 +27,8 @@ export const ACTION: Record<AuditAction, { label: string; icon: ReactNode; tone:
   APPROVED: { label: "Approved", icon: <CheckCircle2 size={14} />, tone: "bg-emerald-50 text-emerald-700 ring-emerald-600/15" },
   REJECTED: { label: "Rejected", icon: <XCircle size={14} />, tone: "bg-red-50 text-red-700 ring-red-600/15" },
   DELETED: { label: "Deleted", icon: <Trash2 size={14} />, tone: "bg-slate-100 text-slate-700 ring-slate-500/15" },
+  PAYMENT: { label: "Payment", icon: <IndianRupee size={14} />, tone: "bg-teal-50 text-teal-700 ring-teal-600/15" },
+  ENTRY_REMOVED: { label: "Entry removed", icon: <MinusCircle size={14} />, tone: "bg-rose-50 text-rose-700 ring-rose-600/15" },
 };
 
 const ACTOR: Record<AuditEntry["actorType"], string> = { ADMIN: "Admin", STUDENT: "Student", IMPORT: "Excel import" };

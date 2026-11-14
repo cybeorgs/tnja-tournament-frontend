@@ -92,6 +92,7 @@ export default function UnpaidNoticesPage() {
   const today = isoDay(0);
   const dayBefore = tournament ? isoDay(-1, new Date(tournament.startDate)) : "";
   const quickDates = [
+    { label: "Today", value: today },
     { label: "In 3 days", value: isoDay(3) },
     { label: "In 7 days", value: isoDay(7) },
     ...(dayBefore && dayBefore >= today ? [{ label: "Day before tournament", value: dayBefore }] : []),
