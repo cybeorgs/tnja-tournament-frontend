@@ -222,7 +222,7 @@ export default function UnpaidNoticesPage() {
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-900">
               <p className="flex items-center gap-1.5 text-sm font-semibold"><AlertTriangle size={15} /> The email says</p>
               <p className="mt-1 text-xs leading-relaxed">
-                Your registration for <b>{tournament?.title}</b> is incomplete because the fee hasn&apos;t been paid. Pay by <b>{longDate(payBy) || "the date above"}</b>, or we will delete your registration — your ID, your login and all your details — from our database, and you won&apos;t be able to play. It lists their unpaid events and amount, with a <b>Continue Payment</b> button.
+                A gentle reminder that the registration for <b>{tournament?.title}</b> is still pending because the fee hasn&apos;t been paid. Please pay <b>{payBy === today ? "today" : "by"} {longDate(payBy) || "the date above"}</b>. The pending list is reset at midnight {payBy === today ? "today" : "that day"}; unpaid registrations are removed and must fill the form again. Already paid? Send the payment screenshot to the TNJA Support Team (8667679733, 9159790558). Ends with a <b>Log in</b> button.
               </p>
             </div>
 
