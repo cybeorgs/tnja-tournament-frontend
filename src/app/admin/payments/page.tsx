@@ -9,6 +9,7 @@ import { categoryLabel, formatDate, formatDateTime, rupees } from "@/lib/format"
 import type { Gender, PaymentStatus, TournamentListItem } from "@/lib/types";
 import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner, cx } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
+import { PaymentsTabs } from "./_components/PaymentsTabs";
 
 interface PaymentRow {
   id: string;
@@ -101,6 +102,7 @@ export default function PaymentsPage() {
           </>
         }
       />
+      <PaymentsTabs />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<IndianRupee size={18} />} tone="text-emerald-600" label="Collected" value={s ? rupees(s.collected) : "—"} />
