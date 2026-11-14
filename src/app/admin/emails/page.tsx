@@ -29,7 +29,7 @@ const STATUS: Record<string, { label: string; color: "green" | "red" | "yellow" 
   RELEASED: { label: "Sent later", color: "slate" },
 };
 const KIND: Record<string, string> = {
-  OTP: "Verification code", REGISTRATION_SUCCESS: "Registration", APPLICATION_RECEIVED: "Application received",
+  OTP: "Verification code", REGISTRATION_INCOMPLETE: "Registration incomplete", REGISTRATION_SUCCESS: "Registration", APPLICATION_RECEIVED: "Application received",
   REGISTRATION_APPROVED: "Approval", PASSWORD_RESET: "Password reset", ENTRY_PASS: "Entry pass",
 };
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });

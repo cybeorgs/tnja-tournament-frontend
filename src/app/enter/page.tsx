@@ -228,7 +228,7 @@ function RegistrationForm({ tournament, onBack }: { tournament: Tournament; onBa
               entries={step.entries}
               tournament={tournament}
               payToken={step.payToken}
-              note={<LoginEmailNote status={step.loginEmail} email={step.email} newAccount={step.newAccount} withPdf />}
+              note={<LoginEmailNote status={step.loginEmail} email={step.email} newAccount={step.newAccount} withPdf={!step.payToken} />}
             />
           )}
 
