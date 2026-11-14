@@ -6,7 +6,7 @@ import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateTime, rupees } from "@/lib/format";
 import { registrationPhase, type Registration, type TournamentDetail } from "@/lib/types";
-import { Badge, Button, Card, EmptyState, Modal, Spinner } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Modal, Spinner, Textarea } from "@/components/ui";
 import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
@@ -20,7 +20,14 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
   const [editing, setEditing] = useState<Registration | null | "new">(null);
   const [removing, setRemoving] = useState<Registration | null>(null);
   const [paying, setPaying] = useState<Registration | null>(null);
+  /** Marking a hand-recorded payment unpaid again (asks why) */
+  const [undoing, setUndoing] = useState<Registration | null>(null);
   const [payMode, setPayMode] = useState<"CASH" | "UPI" | "OTHER">("CASH");
+  /** Why the payment status is being changed; required, kept in the audit log */
+  const [remark, setRemark] = useState("");
+  const [remarkError, setRemarkError] = useState("");
+  /** Why an entry is removed; optional, kept in the audit log */
+  const [removeReason, setRemoveReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -60,7 +67,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     if (!removing) return;
     setBusy(true);
     try {
-      await api(`/tournaments/${tournament.id}/registrations/${removing.id}`, { method: "DELETE" });
+      await api(`/tournaments/${tournament.id}/registrations/${removing.id}`, { method: "DELETE", body: { reason: removeReason.trim() } });
       toast("Entry removed.");
       setRemoving(null);
       refresh();
@@ -86,12 +93,31 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
   const entryPass = (r: Registration) =>
     openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/entry-pass`, "view", `Entry_Pass_${r.student.fullName}_${r.ageGroup}.pdf`).catch((err) => toast(errorMessage(err), false));
 
+  /** Open the record-payment or undo dialog with an empty remark. */
+  function startPayment(r: Registration, status: "PAID" | "PENDING") {
+    setRemark("");
+    setRemarkError("");
+    if (status === "PAID") {
+      setPayMode("CASH");
+      setPaying(r);
+    } else {
+      setUndoing(r);
+    }
+  }
+
   async function setPayment(r: Registration, status: "PAID" | "PENDING") {
+    const text = remark.trim();
+    if (text.length < 3) {
+      setRemarkError(status === "PAID" ? "Enter a remark, e.g. the UPI reference or receipt number." : "Enter why this payment is being undone.");
+      return;
+    }
+    setRemarkError("");
     setBusy(true);
     try {
-      await api(`/tournaments/${tournament.id}/registrations/${r.id}/payment`, { method: "PATCH", body: { status, mode: payMode } });
+      await api(`/tournaments/${tournament.id}/registrations/${r.id}/payment`, { method: "PATCH", body: { status, mode: payMode, remark: text } });
       toast(status === "PAID" ? "Payment recorded. The Tournament Entry Pass for this event has been emailed." : "Marked unpaid.");
       setPaying(null);
+      setUndoing(null);
       refresh();
     } catch (err) {
       toast(errorMessage(err), false);
@@ -179,12 +205,12 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                     <PaymentBadge status={r.paymentStatus} fee={r.fee} amountPaid={r.amountPaid} />
                     {r.paidAt && <p className="mt-1 text-xs text-slate-400">{formatDateTime(r.paidAt)}</p>}
                     {r.paymentStatus === "PENDING" && (
-                      <button onClick={() => { setPayMode("CASH"); setPaying(r); }} className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
+                      <button onClick={() => startPayment(r, "PAID")} className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
                         <IndianRupee size={12} /> Record payment
                       </button>
                     )}
                     {r.paymentStatus === "PAID" && r.paymentMode !== "RAZORPAY" && (
-                      <button onClick={() => setPayment(r, "PENDING")} disabled={busy} className="mt-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:underline">
+                      <button onClick={() => startPayment(r, "PENDING")} disabled={busy} className="mt-1 text-xs font-medium text-slate-400 hover:text-red-600 hover:underline">
                         Undo
                       </button>
                     )}
@@ -200,7 +226,7 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                       {r.paymentStatus !== "PENDING" && <IconButton label="Tournament Entry Pass" onClick={() => entryPass(r)}><Ticket size={15} /></IconButton>}
                       <IconButton label="View certificate" onClick={() => certificate(r, "view")}><Eye size={15} /></IconButton>
                       <IconButton label="Download certificate" onClick={() => certificate(r, "download")}><Download size={15} /></IconButton>
-                      <IconButton label="Remove entry" danger onClick={() => setRemoving(r)}><Trash2 size={15} /></IconButton>
+                      <IconButton label="Remove entry" danger onClick={() => { setRemoveReason(""); setRemoving(r); }}><Trash2 size={15} /></IconButton>
                     </div>
                   </td>
                 </tr>
@@ -248,7 +274,38 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
             </button>
           ))}
         </div>
-        <p className="mt-3 text-xs text-slate-500">For payments taken outside the website. The Tournament Entry Pass for this event is then emailed to the student.</p>
+        <RemarkField
+          label="Remark"
+          placeholder="e.g. UPI ref 4321 5678 9012, or cash receipt no. 118"
+          value={remark}
+          error={remarkError}
+          onChange={(v) => { setRemark(v); if (remarkError) setRemarkError(""); }}
+        />
+        <p className="mt-3 text-xs text-slate-500">For payments taken outside the website. The remark is saved in the audit log, and the Tournament Entry Pass for this event is emailed to the student.</p>
+      </Modal>
+
+      <Modal
+        open={!!undoing}
+        onClose={() => setUndoing(null)}
+        title="Mark as unpaid"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setUndoing(null)}>Cancel</Button>
+            <Button variant="danger" loading={busy} onClick={() => undoing && setPayment(undoing, "PENDING")}>Mark unpaid</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          <strong>{undoing?.student.fullName}</strong> · {undoing && categoryLabel(undoing)} · paid <strong>{undoing && rupees(undoing.amountPaid)}</strong>
+        </p>
+        <RemarkField
+          label="Reason"
+          placeholder="e.g. Recorded by mistake, or the UPI payment failed"
+          value={remark}
+          error={remarkError}
+          onChange={(v) => { setRemark(v); if (remarkError) setRemarkError(""); }}
+        />
+        <p className="mt-3 text-xs text-slate-500">The entry goes back to unpaid. The reason is saved in the audit log.</p>
       </Modal>
 
       <Modal
@@ -265,8 +322,34 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         <p className="text-sm text-slate-600">
           Remove <strong>{removing?.student.fullName}</strong> from this tournament? The student stays in your master list.
         </p>
+        <RemarkField
+          label="Reason (optional)"
+          placeholder="e.g. Fee not paid by the deadline"
+          value={removeReason}
+          onChange={setRemoveReason}
+        />
       </Modal>
     </Card>
+  );
+}
+
+/** A short remark box (saved in the audit log with the change). */
+function RemarkField({ label, placeholder, value, error, onChange }: { label: string; placeholder: string; value: string; error?: string; onChange: (v: string) => void }) {
+  return (
+    <div className="mt-4">
+      <Field label={label} required={!label.includes("optional")} error={error || undefined}>
+        <Textarea
+          value={value}
+          maxLength={500}
+          rows={3}
+          placeholder={placeholder}
+          aria-invalid={!!error || undefined}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-h-20"
+        />
+      </Field>
+      <p className="mt-1 text-right text-[11px] text-slate-400">{value.length}/500</p>
+    </div>
   );
 }
 
