@@ -423,7 +423,7 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
         <Field label="Club / academy">
           <Input value={value.club} onChange={(e) => set("club", e.target.value)} />
         </Field>
-        <Field label="Root coach" hint="The coach who first trained you">
+        <Field label="Root coach">
           <Input value={value.rootCoach} onChange={(e) => set("rootCoach", letters(e.target.value))} />
         </Field>
         <Field label="Belt grade" group className="sm:col-span-2 lg:col-span-1">
