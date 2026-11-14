@@ -234,14 +234,14 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
           title: "Occupation & academy",
           rows: [
             ["Type", "Working professional"], ["Organisation", s.organisationName], ["Employment type", EMPLOYMENT_TYPE_LABEL[s.employmentType] ?? s.employmentType], ["Designation", s.occupation],
-            ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
+            ["Club / academy", s.club], ["Root coach", s.rootCoach], ["Belt", findBelt(s.belt)?.label ?? s.belt],
           ],
         }
       : {
           title: "Education & academy",
           rows: [
             [INSTITUTION[s.institutionType] ?? "Institution", s.institutionName], ["Standard / year", s.grade], ["Department", s.degreeDepartment],
-            ["Club / academy", s.club], ["Coach", s.coachName], ["Belt", findBelt(s.belt)?.label ?? s.belt],
+            ["Club / academy", s.club], ["Root coach", s.rootCoach], ["Belt", findBelt(s.belt)?.label ?? s.belt],
           ],
         },
   ];

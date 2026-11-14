@@ -145,7 +145,8 @@ export interface Student {
   organisationName: string;
   /** Designation / role */
   occupation: string;
-  coachName: string;
+  /** The coach who first trained the player (printed on the entry pass) */
+  rootCoach: string;
   /** Additional details, printed on the Tournament Entry Pass */
   weightKg: number | null;
   managerName: string;

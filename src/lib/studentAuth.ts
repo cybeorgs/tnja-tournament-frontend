@@ -106,7 +106,7 @@ export interface MyStudent {
   grade: string;
   degreeDepartment: string;
   club: string;
-  coachName: string;
+  rootCoach: string;
   belt: string;
   registrations: MyRegistration[];
 }

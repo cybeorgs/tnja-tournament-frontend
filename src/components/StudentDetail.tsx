@@ -102,7 +102,7 @@ function Body({ id, onChanged }: { id: string; onChanged?: () => void }) {
 
       <Group title="Additional details">
         <Item label="Weight" value={s.weightKg ? `${s.weightKg} kg` : ""} />
-        <Item label="Coach" value={s.coachName} />
+        <Item label="Root coach" value={s.rootCoach} />
         <Item label="Manager" value={s.managerName} />
         <Item label="District president" value={s.districtPresident} />
         <Item label="District secretary" value={s.districtSecretary} />

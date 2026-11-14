@@ -29,7 +29,9 @@ export type StudentInput = {
   participantType: ParticipantType;
   institutionType: string; institutionName: string; grade: string; degreeDepartment: string;
   employmentType: string; organisationName: string; occupation: string;
-  club: string; coachName: string; belt: string;
+  club: string; belt: string;
+  /** The player's coach (the one who first trained them); printed on the Tournament Entry Pass */
+  rootCoach: string;
   /** Additional details (printed on the Tournament Entry Pass); weight in kg as typed */
   weightKg: string; managerName: string; districtPresident: string; districtSecretary: string;
 };
@@ -44,7 +46,7 @@ export const emptyStudent: StudentInput = {
   participantType: "STUDENT",
   institutionType: "SCHOOL", institutionName: "", grade: "", degreeDepartment: "",
   employmentType: "PRIVATE", organisationName: "", occupation: "",
-  club: "", coachName: "", belt: "",
+  club: "", belt: "", rootCoach: "",
   weightKg: "", managerName: "", districtPresident: "", districtSecretary: "",
 };
 
@@ -58,7 +60,7 @@ export const fromStudent = (s: Student): StudentInput => ({
   participantType: s.participantType ?? "STUDENT",
   institutionType: s.institutionType || "SCHOOL", institutionName: s.institutionName, grade: s.grade, degreeDepartment: s.degreeDepartment,
   employmentType: s.employmentType || "PRIVATE", organisationName: s.organisationName ?? "", occupation: s.occupation ?? "",
-  club: s.club, coachName: s.coachName, belt: s.belt,
+  club: s.club, belt: s.belt, rootCoach: s.rootCoach ?? "",
   weightKg: s.weightKg ? String(s.weightKg) : "", managerName: s.managerName ?? "", districtPresident: s.districtPresident ?? "", districtSecretary: s.districtSecretary ?? "",
 });
 
@@ -133,7 +135,7 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
   lockGender?: Gender;
   /** Student / working professional can't be changed (editing a saved player: the ID carries the type) */
   lockType?: boolean;
-  /** Players registering themselves: coach, manager, district president and secretary are left to the admin */
+  /** Players registering themselves: manager, district president and secretary are left to the admin */
   publicForm?: boolean;
   /** Shows a Verify button next to the email (public registration) */
   emailOtp?: EmailOtp;
@@ -400,13 +402,10 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
         {publicForm ? (
           <p className="flex items-start gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-500 sm:col-span-1 lg:col-span-2">
             <Lock size={14} className="mt-0.5 shrink-0 text-slate-400" />
-            <span>Coach, manager, district president and district secretary are filled in by the {"association's"} office — you don&apos;t need to enter them.</span>
+            <span>Manager, district president and district secretary are filled in by the {"association's"} office — you don&apos;t need to enter them.</span>
           </p>
         ) : (
           <>
-            <Field label="Coach name">
-              <Input value={value.coachName} onChange={(e) => set("coachName", letters(e.target.value))} />
-            </Field>
             <Field label="Manager name">
               <Input value={value.managerName} onChange={(e) => set("managerName", letters(e.target.value))} />
             </Field>
@@ -424,7 +423,10 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
         <Field label="Club / academy">
           <Input value={value.club} onChange={(e) => set("club", e.target.value)} />
         </Field>
-        <Field label="Belt grade" group className="sm:col-span-1 lg:col-span-2">
+        <Field label="Root coach" hint="The coach who first trained you">
+          <Input value={value.rootCoach} onChange={(e) => set("rootCoach", letters(e.target.value))} />
+        </Field>
+        <Field label="Belt grade" group className="sm:col-span-2 lg:col-span-1">
           <BeltSelect value={value.belt} onChange={(v) => set("belt", v)} />
         </Field>
       </Section>
