@@ -80,10 +80,13 @@ export function PeopleList<T extends { id: string; fullName: string }, F>({
   }
 
   async function remove(item: T) {
-    if (!confirm(`Delete ${item.fullName}?`)) return;
+    const warning = noun === "Student"
+      ? `Delete ${item.fullName} and all their data?\n\nTheir unpaid tournament entries are deleted too. (Anyone who has paid can't be deleted.)\n\nThis can't be undone.`
+      : `Delete ${item.fullName}?`;
+    if (!confirm(warning)) return;
     try {
-      await api(`${endpoint}/${item.id}`, { method: "DELETE" });
-      toast(`${noun} deleted.`);
+      const r = await api<{ message?: string }>(`${endpoint}/${item.id}`, { method: "DELETE" });
+      toast(r?.message || `${noun} deleted.`);
       reload();
       onChanged?.();
     } catch (err) {
