@@ -33,6 +33,7 @@ export function RazorpaySync({ onSynced }: { onSynced: () => void }) {
   const [result, setResult] = useState<SyncResult | null>(null);
   const [resolving, setResolving] = useState<ReviewOrder | null>(null);
   const [resolveNote, setResolveNote] = useState("");
+  const [noRefund, setNoRefund] = useState(false);
   const [resolveError, setResolveError] = useState("");
   const [resolveBusy, setResolveBusy] = useState(false);
 
@@ -55,13 +56,14 @@ export function RazorpaySync({ onSynced }: { onSynced: () => void }) {
 
   async function resolve() {
     if (!resolving) return;
-    if (resolveNote.trim().length < 3) return setResolveError("Say what was done, e.g. refunded ₹900 on 15 Nov.");
+    if (resolveNote.trim().length < 3) return setResolveError("Pick a quick answer or write a short note.");
     setResolveBusy(true);
     try {
-      await api(`/payments/razorpay/review/${encodeURIComponent(resolving.orderId)}/resolve`, { body: { note: resolveNote.trim() } });
-      toast("Marked as resolved.");
+      const r = await api<{ switched: number }>(`/payments/razorpay/review/${encodeURIComponent(resolving.orderId)}/resolve`, { body: { note: resolveNote.trim(), noRefund } });
+      toast(r.switched ? `Marked as resolved — ${r.switched} entr${r.switched === 1 ? "y" : "ies"} now shown as paid Online.` : "Marked as resolved.");
       setResolving(null);
       reloadReview();
+      if (r.switched) onSynced();
     } catch (err) {
       setResolveError(errorMessage(err));
     } finally {
@@ -118,7 +120,7 @@ export function RazorpaySync({ onSynced }: { onSynced: () => void }) {
                     <p className="font-mono text-[11px] text-slate-400">{o.paymentId ?? "no payment"} · {o.orderId}{o.paidAt ? ` · paid ${formatDateTime(o.paidAt)}` : ""}</p>
                     <p className="mt-1 text-amber-900 [overflow-wrap:anywhere]">{o.note}</p>
                   </div>
-                  <Button size="sm" variant="secondary" className="shrink-0" onClick={() => { setResolveNote(""); setResolveError(""); setResolving(o); }}>Mark resolved</Button>
+                  <Button size="sm" variant="secondary" className="shrink-0" onClick={() => { setResolveNote(""); setResolveError(""); setNoRefund(false); setResolving(o); }}>Mark resolved</Button>
                 </li>
               ))}
             </ul>
@@ -140,19 +142,30 @@ export function RazorpaySync({ onSynced }: { onSynced: () => void }) {
         <p className="text-sm text-slate-600">
           <b>{resolving?.student?.fullName}</b> · {resolving && rupees(resolving.amount)} · <span className="font-mono text-xs">{resolving?.paymentId}</span>
         </p>
-        <p className="mt-2 text-xs text-amber-800">{resolving?.note}</p>
+        <p className="mt-2 text-xs text-amber-800"><span className="font-semibold">Why it was flagged:</span> {resolving?.note}</p>
+        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          This does <b>not</b> refund anyone or move any money. It only closes this review with a note of how it was settled.
+        </p>
         <div className="mt-4">
-          <Field label="What was done" required error={resolveError || undefined}>
+          <p className="mb-1.5 text-xs font-medium text-slate-700">Quick answer</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant={noRefund ? "primary" : "secondary"} onClick={() => { setResolveNote("No refund — paid once online; the entry was marked paid by hand for this same payment."); setResolveError(""); setNoRefund(true); }}>
+              No refund needed
+            </Button>
+          </div>
+          {noRefund && <p className="mt-1.5 text-xs text-emerald-700">The entry will also be shown as paid <b>Online</b> (linked to this Razorpay payment) instead of cash / UPI. The amount doesn&apos;t change.</p>}
+        </div>
+        <div className="mt-3">
+          <Field label="Note" required error={resolveError || undefined}>
             <Textarea
               rows={3}
               maxLength={500}
               value={resolveNote}
-              placeholder="e.g. Refunded ₹900 from the Razorpay dashboard on 15 Nov, or marked the entry paid by hand"
+              placeholder="e.g. No refund — paid once online, marked UPI by admin for the same payment"
               onChange={(e) => { setResolveNote(e.target.value); setResolveError(""); }}
             />
           </Field>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Refunds are made in the Razorpay dashboard; this only records that it was sorted out.</p>
       </Modal>
     </>
   );
