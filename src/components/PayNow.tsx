@@ -40,7 +40,24 @@ export function PayNow({ amount, createOrder, verify, onPaid, className, size = 
       const result = await payWithRazorpay(order, { orgName: settings?.orgShortName || "Entry fee", logo: settings ? new URL(brandLogo(settings), window.location.href).href : undefined });
       if (!result) return; // closed without paying
       setStep("verifying");
-      await verify(result);
+      // The money has been taken: keep trying to confirm it (a slow or dropped connection is the usual
+      // reason this fails). If it still can't be confirmed here, the server confirms it on its own — via
+      // Razorpay's webhook or its automatic check — so the player must not pay again.
+      let lastError: unknown = null;
+      for (const wait of [0, 2000, 5000]) {
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        try {
+          await verify(result);
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      if (lastError) {
+        setError(`Your payment (${result.razorpay_payment_id}) was received, but we couldn't confirm it just now (${errorMessage(lastError)}). It will show as paid within a few minutes — please don't pay again.`);
+        return;
+      }
       onPaid();
     } catch (err) {
       setError(errorMessage(err));
