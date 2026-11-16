@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, FileSpreadsheet, IndianRupee, Pencil, Plus, Ticket, Trash2, Upload, Users } from "lucide-react";
+import { Download, Eye, FileSpreadsheet, IndianRupee, Pencil, Plus, Ticket, Trash2, Upload, UserCog, Users } from "lucide-react";
 import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateTime, rupees } from "@/lib/format";
@@ -11,6 +11,7 @@ import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesP
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
 import { ImportEntriesModal } from "./ImportEntriesModal";
+import { EditPlayerModal } from "./EditPlayerModal";
 import { PaymentBadge } from "@/components/Payment";
 
 export function RegistrationsTab({ tournament, onChange }: { tournament: TournamentDetail; onChange: () => void }) {
@@ -19,6 +20,8 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
   const { filters, setFilters, active } = useFilters();
   const [editing, setEditing] = useState<Registration | null | "new">(null);
   const [removing, setRemoving] = useState<Registration | null>(null);
+  /** Editing the player's own details (name, gender, DOB…) */
+  const [editingPlayer, setEditingPlayer] = useState<Registration | null>(null);
   const [paying, setPaying] = useState<Registration | null>(null);
   /** Marking a hand-recorded payment unpaid again (asks why) */
   const [undoing, setUndoing] = useState<Registration | null>(null);
@@ -89,9 +92,9 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     }
   }
 
-  /** Each paid (or free) event has its own Tournament Entry Pass. */
+  /** Each paid (or free) event has its own Tournament Entry Pass, built fresh from the latest details. */
   const entryPass = (r: Registration) =>
-    openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/entry-pass`, "view", `Entry_Pass_${r.student.fullName}_${r.ageGroup}.pdf`).catch((err) => toast(errorMessage(err), false));
+    openPdf(`/tournaments/${tournament.id}/registrations/${r.id}/entry-pass`, "download", `Entry_Pass_${r.student.fullName}_${r.ageGroup}.pdf`).catch((err) => toast(errorMessage(err), false));
 
   /** Open the record-payment or undo dialog with an empty remark. */
   function startPayment(r: Registration, status: "PAID" | "PENDING") {
@@ -222,8 +225,9 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
+                      <IconButton label="Edit player details (name, gender, date of birth…)" onClick={() => setEditingPlayer(r)}><UserCog size={15} /></IconButton>
                       <IconButton label="Edit category" onClick={() => setEditing(r)}><Pencil size={15} /></IconButton>
-                      {r.paymentStatus !== "PENDING" && <IconButton label="Tournament Entry Pass" onClick={() => entryPass(r)}><Ticket size={15} /></IconButton>}
+                      {r.paymentStatus !== "PENDING" && <IconButton label="Download Tournament Entry Pass (latest details)" onClick={() => entryPass(r)}><Ticket size={15} /></IconButton>}
                       <IconButton label="View certificate" onClick={() => certificate(r, "view")}><Eye size={15} /></IconButton>
                       <IconButton label="Download certificate" onClick={() => certificate(r, "download")}><Download size={15} /></IconButton>
                       <IconButton label="Remove entry" danger onClick={() => { setRemoveReason(""); setRemoving(r); }}><Trash2 size={15} /></IconButton>
@@ -237,6 +241,9 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
       )}
 
       <ImportEntriesModal tournament={tournament} open={importing} onClose={() => setImporting(false)} onImported={refresh} />
+      {editingPlayer && (
+        <EditPlayerModal tournamentId={tournament.id} entry={editingPlayer} onClose={() => setEditingPlayer(null)} onSaved={refresh} />
+      )}
       {editing && (
         <EntryModal
           tournament={tournament}
