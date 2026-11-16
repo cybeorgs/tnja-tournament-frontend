@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Copy, IndianRupee, MailWarning } from "lucide-react";
+import { Copy, CreditCard, IndianRupee, MailWarning } from "lucide-react";
 import { cx } from "@/components/ui";
 
 const TABS = [
   { href: "/admin/payments", label: "Payments", icon: IndianRupee },
   { href: "/admin/payments/unpaid", label: "Unpaid notices", icon: MailWarning },
   { href: "/admin/payments/duplicates", label: "Duplicates", icon: Copy },
+  { href: "/admin/payments/razorpay", label: "Razorpay", icon: CreditCard },
 ];
 
 /** Switches between the payments list and the unpaid-notice section. */

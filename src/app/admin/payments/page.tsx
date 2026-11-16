@@ -10,8 +10,6 @@ import type { Gender, PaymentStatus, TournamentListItem } from "@/lib/types";
 import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner, cx } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
 import { PaymentsTabs } from "./_components/PaymentsTabs";
-import { RazorpaySync } from "./_components/RazorpaySync";
-import { MoneyCheck } from "./_components/MoneyCheck";
 
 interface PaymentRow {
   id: string;
@@ -66,8 +64,8 @@ export default function PaymentsPage() {
   if (status) filters.set("status", status);
   if (debounced) filters.set("q", debounced);
   const filterQs = filters.toString();
-  const { data, loading, error, reload } = useApi<PaymentList>(`/payments?page=${page}&pageSize=50${filterQs ? `&${filterQs}` : ""}`);
-  const { data: report, reload: reloadReport } = useApi<PaymentReport>(`/payments/report${filterQs ? `?${filterQs}` : ""}`);
+  const { data, loading, error } = useApi<PaymentList>(`/payments?page=${page}&pageSize=50${filterQs ? `&${filterQs}` : ""}`);
+  const { data: report } = useApi<PaymentReport>(`/payments/report${filterQs ? `?${filterQs}` : ""}`);
 
   const toast = useToast();
   const [exporting, setExporting] = useState<"" | "xlsx" | "pdf">("");
@@ -105,8 +103,6 @@ export default function PaymentsPage() {
         }
       />
       <PaymentsTabs />
-      <RazorpaySync onSynced={() => { reload(); reloadReport(); }} />
-      <MoneyCheck />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<IndianRupee size={18} />} tone="text-emerald-600" label="Collected" value={s ? rupees(s.collected) : "—"} />

@@ -16,7 +16,7 @@ interface Bucket { count: number; amount: number; items: CheckItem[] }
 interface MoneyCheckResult {
   days: number;
   from: string;
-  razorpay: { count: number; collected: number; refunded: number };
+  razorpay: { count: number; collected: number; refunded: number; dashboardCount?: number; dashboardAmount?: number };
   recorded: { count: number; amount: number; entriesAmount: number };
   refunded: Bucket;
   outside: Bucket;
@@ -92,7 +92,14 @@ export function MoneyCheck() {
             <div className="rounded-xl border border-slate-200">
               <p className="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Razorpay ({r.days} days)</p>
               <div className="divide-y divide-slate-100 text-sm">
-                <Row label="Collected in Razorpay" hint={`${r.razorpay.count} payments`} amount={r.razorpay.collected} strong />
+                <Row
+                  label="Collected in Razorpay"
+                  hint={`${r.razorpay.count} payments, including refunded ones${r.razorpay.dashboardAmount !== undefined && r.razorpay.dashboardAmount !== r.razorpay.collected
+                    ? `. Razorpay's dashboard shows ${rupees(r.razorpay.dashboardAmount)} from ${r.razorpay.dashboardCount} payments, because it leaves fully refunded payments out`
+                    : ""}`}
+                  amount={r.razorpay.collected}
+                  strong
+                />
                 <BucketRow sign="−" label="Refunded to players" bucket={r.refunded} tone="red" />
                 <BucketRow sign="−" label="Not from this website" hint="payment links or other forms on the same Razorpay account" bucket={r.outside} tone="slate" />
                 <BucketRow sign="−" label="Waiting for review" hint="see the yellow list above" bucket={r.review} tone="amber" />
