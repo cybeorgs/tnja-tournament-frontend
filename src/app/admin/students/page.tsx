@@ -23,7 +23,8 @@ export default function StudentsPage() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [tab, setTab] = useState<"ALL" | "PENDING">("ALL");
   const [type, setType] = useState<"" | ParticipantType>("");
-  const filter = [tab === "PENDING" ? "status=PENDING" : "", type ? `type=${type}` : ""].filter(Boolean).join("&");
+  const [payment, setPayment] = useState<"" | "UNPAID" | "PAID" | "NOT_ENTERED">("");
+  const filter = [tab === "PENDING" ? "status=PENDING" : "", type ? `type=${type}` : "", payment ? `payment=${payment}` : ""].filter(Boolean).join("&");
   // Bumped after approving/rejecting so the list and the counts reload.
   const [version, setVersion] = useState(0);
   // Bumped after adding / editing / deleting from the list: only the counts reload.
@@ -53,7 +54,7 @@ export default function StudentsPage() {
   return (
     <>
       <PeopleList<Student, StudentForm>
-        key={`${tab}-${type}-${version}`}
+        key={`${tab}-${type}-${payment}-${version}`}
         query={filter ? `&${filter}` : ""}
         onChanged={() => setStatsVersion((v) => v + 1)}
         toolbar={
@@ -96,6 +97,12 @@ export default function StudentsPage() {
             <option value="">Students &amp; professionals</option>
             <option value="STUDENT">Students only</option>
             <option value="PROFESSIONAL">Working professionals only</option>
+          </Select>
+          <Select aria-label="Payment" value={payment} onChange={(e) => setPayment(e.target.value as typeof payment)} className="sm:w-56">
+            <option value="">Paid &amp; unpaid</option>
+            <option value="UNPAID">Unpaid (owes an entry fee)</option>
+            <option value="PAID">Paid (nothing owed)</option>
+            <option value="NOT_ENTERED">Not entered in any tournament</option>
           </Select>
           </div>
           </>
