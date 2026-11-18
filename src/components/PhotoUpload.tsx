@@ -17,7 +17,7 @@ export const PHOTO_RULES = [
 ];
 
 /** Centre-crop to the passport shape and re-encode as JPEG. */
-async function toPassportPhoto(file: File): Promise<string> {
+export async function toPassportPhoto(file: File): Promise<string> {
   if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) throw new Error("Choose a JPG or PNG photo.");
   if (file.size > 15 * 1024 * 1024) throw new Error("That photo is too large. Choose one under 15 MB.");
   const url = URL.createObjectURL(file);

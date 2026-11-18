@@ -11,10 +11,11 @@ import { Badge, Button, Select, cx } from "@/components/ui";
 import { PeopleList } from "@/components/PeopleList";
 import { StatusBadge, StudentDetailModal } from "@/components/StudentDetail";
 import { useApi } from "@/lib/hooks";
+import { StudentPhotoEditor } from "@/components/StudentPhotoEditor";
 import { StudentFields, emptyStudent, fromStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
 
 /** The form plus the email on file when editing (keeping it needs no new code). */
-type StudentForm = StudentInput & { savedEmail?: string };
+type StudentForm = StudentInput & { savedEmail?: string; id?: string };
 /** GET /students/stats (rejected applications aren't counted) */
 type StudentStats = { total: number; students: number; professionals: number; pending: number };
 
@@ -123,14 +124,17 @@ export default function StudentsPage() {
         icon={<Users size={40} />}
         searchPlaceholder="Search name, ID, club or phone"
         empty={emptyStudent}
-        toForm={(s) => ({ ...fromStudent(s), savedEmail: s.email })}
-        toBody={(f) => ({ ...f, savedEmail: undefined })}
+        toForm={(s) => ({ ...fromStudent(s), savedEmail: s.email, id: s.id })}
+        toBody={(f) => ({ ...f, savedEmail: undefined, id: undefined })}
         validate={(f) =>
           validateStudent(f)
         }
         wideForm
         renderForm={(value, onChange) => (
-          <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail })} lockType={value.savedEmail !== undefined} />
+          <>
+            {value.id && <StudentPhotoEditor studentId={value.id} />}
+            <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail, id: value.id })} lockType={value.savedEmail !== undefined} />
+          </>
         )}
         onView={(s) => setViewing(s.id)}
         columns={[

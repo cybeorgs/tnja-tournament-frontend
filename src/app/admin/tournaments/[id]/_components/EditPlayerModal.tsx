@@ -8,6 +8,7 @@ import type { Registration, Student } from "@/lib/types";
 import { Button, Modal, Spinner } from "@/components/ui";
 import { StudentFields, fromStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
 import { errorMessage, useToast } from "@/components/Toast";
+import { StudentPhotoEditor } from "@/components/StudentPhotoEditor";
 
 /**
  * Edit a player's own details (name, gender, date of birth, club…) from a tournament entry. Changing the
@@ -100,6 +101,7 @@ export function EditPlayerModal({ tournamentId, entry, onClose, onSaved }: {
           <p className="mb-4 rounded-xl bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
             Entered in <b>{categoryLabel(entry)}</b>. Changing the gender moves their entries in unfinished tournaments to the boys&apos; / girls&apos; weight class of the same age group.
           </p>
+          <StudentPhotoEditor studentId={entry.studentId} />
           <StudentFields value={form} onChange={(v) => { setForm(v); if (error) setError(""); }} lockType />
           {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         </>

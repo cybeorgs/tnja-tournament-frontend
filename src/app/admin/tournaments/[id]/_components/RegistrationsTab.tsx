@@ -6,7 +6,7 @@ import { api, downloadFile, openPdf } from "@/lib/api";
 import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateTime, rupees } from "@/lib/format";
 import { registrationPhase, type Registration, type TournamentDetail } from "@/lib/types";
-import { Badge, Button, Card, EmptyState, Field, Modal, Spinner, Textarea } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner, Textarea } from "@/components/ui";
 import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
@@ -81,6 +81,28 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     }
   }
 
+  /** Unpaid entries in the list as currently filtered (the bulk delete works on these) */
+  const unpaid = filtered.filter((r) => r.paymentStatus === "PENDING");
+  const unpaidPlayers = new Set(unpaid.map((r) => r.studentId)).size;
+  const unpaidTotal = unpaid.reduce((n, r) => n + r.fee, 0);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkConfirm, setBulkConfirm] = useState("");
+
+  async function deleteUnpaid() {
+    setBusy(true);
+    try {
+      const r = await api<{ message: string }>(`/tournaments/${tournament.id}/registrations/delete-unpaid`, { body: { ids: unpaid.map((e) => e.id), reason: bulkReason.trim() } });
+      toast(r.message);
+      setBulkOpen(false);
+      refresh();
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function exportExcel() {
     setExporting(true);
     try {
@@ -140,6 +162,16 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         {all.length > 0 && (
           <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel} title="Every entry with the student's details, category and weigh-in">
             Download Excel
+          </Button>
+        )}
+        {unpaid.length > 0 && (
+          <Button
+            variant="secondary"
+            icon={<Trash2 size={16} />}
+            onClick={() => { setBulkReason(""); setBulkConfirm(""); setBulkOpen(true); }}
+            title={active ? "Delete the unpaid entries in the filtered list" : "Delete every unpaid entry in this tournament"}
+          >
+            Delete unpaid ({unpaid.length})
           </Button>
         )}
         <Button variant="secondary" icon={<Upload size={16} />} onClick={() => setImporting(true)} disabled={!canAdd} title={canAdd ? "Enter many students from an Excel file" : "Registration isn't open — see the dates in Overview"}>
@@ -335,6 +367,41 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
           value={removeReason}
           onChange={setRemoveReason}
         />
+      </Modal>
+
+      <Modal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        title="Delete unpaid entries"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBulkOpen(false)}>Cancel</Button>
+            <Button variant="danger" loading={busy} disabled={bulkConfirm.trim().toUpperCase() !== "DELETE"} onClick={deleteUnpaid}>
+              Delete {unpaid.length} entr{unpaid.length === 1 ? "y" : "ies"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-600">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-red-50 px-2 py-3"><p className="text-xl font-bold text-red-700">{unpaid.length}</p><p className="text-xs text-red-800">unpaid entries</p></div>
+            <div className="rounded-xl bg-slate-50 px-2 py-3"><p className="text-xl font-bold text-slate-800">{unpaidPlayers}</p><p className="text-xs text-slate-500">players</p></div>
+            <div className="rounded-xl bg-slate-50 px-2 py-3"><p className="text-xl font-bold text-slate-800">{rupees(unpaidTotal)}</p><p className="text-xs text-slate-500">fees not paid</p></div>
+          </div>
+          {active
+            ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">Only the unpaid entries matching your <b>filters</b> are deleted. Clear the filters to delete every unpaid entry in this tournament.</p>
+            : <p>Every unpaid entry in <b>{tournament.title}</b> is deleted.</p>}
+          <ul className="list-disc space-y-0.5 pl-5 text-xs">
+            <li>Paid and free entries are never touched.</li>
+            <li>The players stay in the Students list, and can register again while registration is open.</li>
+            <li>Kept automatically: entries already in a draw, and entries the player is paying for right now.</li>
+            <li>Each deletion is written to the player&apos;s history.</li>
+          </ul>
+          <RemarkField label="Reason (optional)" placeholder="e.g. Fee not paid by the deadline" value={bulkReason} onChange={setBulkReason} />
+          <Field label='Type DELETE to confirm'>
+            <Input value={bulkConfirm} onChange={(e) => setBulkConfirm(e.target.value)} placeholder="DELETE" autoComplete="off" />
+          </Field>
+        </div>
       </Modal>
     </Card>
   );
