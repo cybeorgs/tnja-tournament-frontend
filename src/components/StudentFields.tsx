@@ -129,12 +129,14 @@ function ageFrom(dob: string): number | null {
   return age >= 0 && age < 120 ? age : null;
 }
 
-export function StudentFields({ value, onChange, lockGender, lockType, emailOtp, docs, onDocsChange, publicForm }: {
+export function StudentFields({ value, onChange, lockGender, lockType, savedType, emailOtp, docs, onDocsChange, publicForm }: {
   value: StudentInput;
   onChange: (v: StudentInput) => void;
   lockGender?: Gender;
-  /** Student / working professional can't be changed (editing a saved player: the ID carries the type) */
+  /** Student / working professional can't be changed */
   lockType?: boolean;
+  /** Admin editing a saved player: the type they were saved with (changing it switches the ID letter, S / P) */
+  savedType?: ParticipantType;
   /** Players registering themselves: manager, district president and secretary are left to the admin */
   publicForm?: boolean;
   /** Shows a Verify button next to the email (public registration) */
@@ -164,10 +166,16 @@ export function StudentFields({ value, onChange, lockGender, lockType, emailOtp,
           required
           group
           className="sm:col-span-2 lg:col-span-3"
-          hint={lockType ? "Fixed at registration (it is part of the player ID)." : "Students and working professionals play in the same age and weight categories."}
+          hint={lockType ? "Fixed at registration (it is part of the player ID)." : savedType ? "Students and working professionals play in the same age and weight categories. Changing this changes the player ID letter (S / P)." : "Students and working professionals play in the same age and weight categories."}
         >
           <Segmented value={value.participantType} options={PARTICIPANT_TYPES} disabled={lockType} onChange={(t) => set("participantType", t as ParticipantType)} />
         </Field>
+        {savedType && savedType !== value.participantType && (
+          <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-xs text-amber-900 sm:col-span-2 lg:col-span-3">
+            Changing to <b>{professional ? "working professional" : "student"}</b>: the player ID changes from <b>-{savedType === "PROFESSIONAL" ? "P" : "S"}-</b> to <b>-{professional ? "P" : "S"}-</b> (same number, e.g. TNJA-{professional ? "S" : "P"}-000593 → TNJA-{professional ? "P" : "S"}-000593).
+            Fill in the {professional ? "organisation / employer" : "institution"} details below. Entry passes and certificates show the new ID from now on; ones already printed keep the old ID. Tell the player their new ID.
+          </p>
+        )}
       </Section>
 
       <Section icon={<Home />} title="Permanent address" subtitle="As on your Aadhaar">

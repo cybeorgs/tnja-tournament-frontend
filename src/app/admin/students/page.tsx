@@ -15,7 +15,7 @@ import { StudentPhotoEditor } from "@/components/StudentPhotoEditor";
 import { StudentFields, emptyStudent, fromStudent, validateStudent, type StudentInput } from "@/components/StudentFields";
 
 /** The form plus the email on file when editing (keeping it needs no new code). */
-type StudentForm = StudentInput & { savedEmail?: string; id?: string };
+type StudentForm = StudentInput & { savedEmail?: string; id?: string; savedType?: ParticipantType };
 /** GET /students/stats (rejected applications aren't counted) */
 type StudentStats = { total: number; students: number; professionals: number; pending: number };
 
@@ -124,8 +124,8 @@ export default function StudentsPage() {
         icon={<Users size={40} />}
         searchPlaceholder="Search name, ID, club or phone"
         empty={emptyStudent}
-        toForm={(s) => ({ ...fromStudent(s), savedEmail: s.email, id: s.id })}
-        toBody={(f) => ({ ...f, savedEmail: undefined, id: undefined })}
+        toForm={(s) => ({ ...fromStudent(s), savedEmail: s.email, id: s.id, savedType: s.participantType })}
+        toBody={(f) => ({ ...f, savedEmail: undefined, id: undefined, savedType: undefined })}
         validate={(f) =>
           validateStudent(f)
         }
@@ -133,7 +133,7 @@ export default function StudentsPage() {
         renderForm={(value, onChange) => (
           <>
             {value.id && <StudentPhotoEditor studentId={value.id} />}
-            <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail, id: value.id })} lockType={value.savedEmail !== undefined} />
+            <StudentFields value={value} onChange={(v) => onChange({ ...v, savedEmail: value.savedEmail, id: value.id, savedType: value.savedType })} savedType={value.savedType} />
           </>
         )}
         onView={(s) => setViewing(s.id)}

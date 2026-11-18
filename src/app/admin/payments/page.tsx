@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Briefcase, CheckCircle2, Clock, FileSpreadsheet, GraduationCap, FileText, IndianRupee, MapPin, Search, Users } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, FileSpreadsheet, GraduationCap, FileText, IndianRupee, MapPin, Search, Trash2, Users } from "lucide-react";
 import { useApi } from "@/lib/hooks";
-import { downloadFile, openPdf } from "@/lib/api";
+import { api, downloadFile, openPdf } from "@/lib/api";
 import { errorMessage, useToast } from "@/components/Toast";
 import { categoryLabel, formatDate, formatDateTime, rupees } from "@/lib/format";
 import type { Gender, PaymentStatus, TournamentListItem } from "@/lib/types";
-import { Button, Card, EmptyState, Input, PageHeader, Select, Spinner, cx } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea, cx } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
 import { PaymentsTabs } from "./_components/PaymentsTabs";
 
@@ -64,8 +64,8 @@ export default function PaymentsPage() {
   if (status) filters.set("status", status);
   if (debounced) filters.set("q", debounced);
   const filterQs = filters.toString();
-  const { data, loading, error } = useApi<PaymentList>(`/payments?page=${page}&pageSize=50${filterQs ? `&${filterQs}` : ""}`);
-  const { data: report } = useApi<PaymentReport>(`/payments/report${filterQs ? `?${filterQs}` : ""}`);
+  const { data, loading, error, reload } = useApi<PaymentList>(`/payments?page=${page}&pageSize=50${filterQs ? `&${filterQs}` : ""}`);
+  const { data: report, reload: reloadReport } = useApi<PaymentReport>(`/payments/report${filterQs ? `?${filterQs}` : ""}`);
 
   const toast = useToast();
   const [exporting, setExporting] = useState<"" | "xlsx" | "pdf">("");
@@ -79,6 +79,27 @@ export default function PaymentsPage() {
       toast(errorMessage(err), false);
     } finally {
       setExporting("");
+    }
+  }
+
+  /** Deleting one unpaid entry (e.g. a second category the player never paid for) */
+  const [deleting, setDeleting] = useState<PaymentRow | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const askDelete = (r: PaymentRow) => { setDeleteReason(""); setDeleting(r); };
+  async function deleteEntry() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api(`/tournaments/${deleting.tournament.id}/registrations/${deleting.id}`, { method: "DELETE", body: { reason: deleteReason.trim() } });
+      toast(`Deleted ${deleting.student.fullName}'s unpaid ${categoryLabel(deleting)} entry.`);
+      setDeleting(null);
+      reload();
+      reloadReport();
+    } catch (err) {
+      toast(errorMessage(err), false);
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -168,6 +189,11 @@ export default function PaymentsPage() {
                   <p className="mt-1.5 text-[11px] text-slate-400">
                     {r.paidAt ? `Paid ${formatDateTime(r.paidAt)}${r.paymentMode ? ` · ${modeLabel(r.paymentMode)}` : ""}` : `Entered ${formatDateTime(r.createdAt)}`}
                   </p>
+                  {r.paymentStatus === "PENDING" && (
+                    <button onClick={() => askDelete(r)} className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline">
+                      <Trash2 size={12} /> Delete unpaid entry
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -182,6 +208,7 @@ export default function PaymentsPage() {
                     <th className="px-5 py-3">Category</th>
                     <th className="px-5 py-3">Payment</th>
                     <th className="px-5 py-3">Paid on</th>
+                    <th className="px-3 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -208,6 +235,13 @@ export default function PaymentsPage() {
                         {r.paidAt ? formatDateTime(r.paidAt) : "—"}
                         {r.razorpayPaymentId && <p className="font-mono text-[11px] text-slate-400">{r.razorpayPaymentId}</p>}
                       </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {r.paymentStatus === "PENDING" && (
+                          <button onClick={() => askDelete(r)} title="Delete this unpaid entry" aria-label="Delete this unpaid entry" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -228,6 +262,36 @@ export default function PaymentsPage() {
       </Card>
 
       {report && report.districts.length > 0 && <DistrictReport report={report} />}
+
+      <Modal
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        title="Delete unpaid entry"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button variant="danger" loading={deleteBusy} onClick={deleteEntry}>Delete entry</Button>
+          </>
+        }
+      >
+        {deleting && (
+          <div className="space-y-3 text-sm text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="font-semibold text-slate-800">{deleting.student.fullName} <span className="font-mono text-xs font-normal text-slate-500">{deleting.student.studentNo}</span></p>
+              <p className="text-xs">{deleting.tournament.title}</p>
+              <p className="mt-1 text-xs"><b>{categoryLabel(deleting)}</b> · unpaid {rupees(deleting.fee)}</p>
+            </div>
+            <ul className="list-disc space-y-0.5 pl-5 text-xs">
+              <li>Only this unpaid category is deleted. Their paid categories and entry passes stay as they are.</li>
+              <li>The player stays in the Students list. While registration is open they can log in with their username and register for this category again.</li>
+              <li>The deletion is written to the player&apos;s history.</li>
+            </ul>
+            <Field label="Reason (optional)">
+              <Textarea rows={2} value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} placeholder="e.g. Fee not paid by the deadline" />
+            </Field>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
