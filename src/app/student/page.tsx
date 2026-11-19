@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Ticket, Trophy, XCircle } from "lucide-react";
+import { ChevronDown, Clock, Download, Eye, KeyRound, LogOut, Plus, Ticket, Trophy, XCircle } from "lucide-react";
+import { useMeta } from "@/lib/hooks";
+import { eligibleAgeGroups } from "@/lib/categories";
 import { PASSWORD_HINT, passwordProblem, studentApi, studentAuth, studentPdf, type MyRegistration, type MyStudent } from "@/lib/studentAuth";
 import { formatDate, formatDateRange, representingLabel, rupees, titleCase } from "@/lib/format";
-import { EMPLOYMENT_TYPE_LABEL, type Tournament } from "@/lib/types";
+import { EMPLOYMENT_TYPE_LABEL, type Meta, type Tournament } from "@/lib/types";
 import { BackLink, Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner } from "@/components/ui";
 import { PaymentBadge } from "@/components/Payment";
 import { PayNow } from "@/components/PayNow";
@@ -20,7 +22,9 @@ export default function StudentHomePage() {
   const router = useRouter();
   const [me, setMe] = useState<{ email: string; students: MyStudent[] } | null>(null);
   const [error, setError] = useState("");
-  const [entering, setEntering] = useState<MyStudent | null>(null);
+  const [entering, setEntering] = useState<{ student: MyStudent; tournament?: Tournament } | null>(null);
+  const { tournaments: openTournaments } = useOpenTournaments();
+  const meta = useMeta();
   const [changingPassword, setChangingPassword] = useState(false);
 
   const load = useCallback(() => {
@@ -43,7 +47,7 @@ export default function StudentHomePage() {
   if (entering) {
     return (
       <PublicShell>
-        <EnterTournament student={entering} onClose={() => { setEntering(null); load(); }} />
+        <EnterTournament student={entering.student} initial={entering.tournament} onClose={() => { setEntering(null); load(); }} />
       </PublicShell>
     );
   }
@@ -70,7 +74,15 @@ export default function StudentHomePage() {
           <Card><EmptyState title="No students on this account">Register from the tournament page first.</EmptyState></Card>
         ) : (
           <div className="space-y-4">
-            {me.students.map((s) => <StudentCard key={s.id} student={s} onEnter={() => setEntering(s)} onChanged={load} />)}
+            {me.students.map((s) => (
+              <StudentCard
+                key={s.id}
+                student={s}
+                more={meta && s.status === "APPROVED" && s.studentNo ? moreEvents(meta, s, openTournaments) : []}
+                onEnter={(tournament) => setEntering({ student: s, tournament })}
+                onChanged={load}
+              />
+            ))}
           </div>
         )}
 
@@ -83,13 +95,31 @@ export default function StudentHomePage() {
   );
 }
 
-function StudentCard({ student: s, onEnter, onChanged }: { student: MyStudent; onEnter: () => void; onChanged: () => void }) {
+/** Events the player can still enter: per tournament open for registration, the age groups they may play and haven't entered yet. */
+type MoreEvents = { tournament: Tournament; groups: string[]; entered: boolean };
+function moreEvents(meta: Meta, s: MyStudent, open: Tournament[]): MoreEvents[] {
+  return open
+    .filter((t) => t.gender === "BOTH" || s.gender === "OTHER" || t.gender === s.gender)
+    .map((t) => {
+      const entered = new Set(s.registrations.filter((r) => r.tournament.id === t.id).map((r) => r.ageGroup));
+      return { tournament: t, groups: eligibleAgeGroups(meta, s.dob, t.startDate, t.ageGroups).filter((g) => !entered.has(g)), entered: entered.size > 0 };
+    })
+    .filter((m) => m.groups.length > 0);
+}
+
+/** "A", "A and B", "A, B and C" */
+const listJoin = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
+
+function StudentCard({ student: s, more, onEnter, onChanged }: { student: MyStudent; more: MoreEvents[]; onEnter: (tournament?: Tournament) => void; onChanged: () => void }) {
   const [showDetails, setShowDetails] = useState(false);
   // Entries grouped by tournament.
   const byTournament = [...new Map(s.registrations.map((r) => [r.tournament.id, r.tournament])).values()].map((t) => ({
     tournament: t,
     entries: s.registrations.filter((r) => r.tournament.id === t.id),
   }));
+  const moreFor = (id: string) => more.find((m) => m.tournament.id === id);
+  // Open tournaments the player hasn't entered yet
+  const notEntered = more.filter((m) => !m.entered);
 
   return (
     <Card className="overflow-hidden">
@@ -103,7 +133,7 @@ function StudentCard({ student: s, onEnter, onChanged }: { student: MyStudent; o
             <span>Born {formatDate(s.dob)}</span>
           </div>
         </div>
-        {s.status === "APPROVED" && <Button icon={<Trophy size={16} />} onClick={onEnter}>Register for a tournament</Button>}
+        {s.status === "APPROVED" && <Button icon={<Trophy size={16} />} onClick={() => onEnter()}>Register for a tournament</Button>}
       </div>
 
       {s.status === "PENDING" && (
@@ -120,7 +150,21 @@ function StudentCard({ student: s, onEnter, onChanged }: { student: MyStudent; o
       {byTournament.length > 0 && (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {byTournament.map(({ tournament, entries }) => (
-            <TournamentEntries key={tournament.id} student={s} tournament={tournament} entries={entries} onChanged={onChanged} />
+            <TournamentEntries key={tournament.id} student={s} tournament={tournament} entries={entries} onChanged={onChanged} more={moreFor(tournament.id)} onAdd={onEnter} />
+          ))}
+        </ul>
+      )}
+
+      {notEntered.length > 0 && (
+        <ul className="divide-y divide-brand/10 border-t border-slate-100">
+          {notEntered.map((m) => (
+            <li key={m.tournament.id} className="flex flex-col gap-3 bg-brand-soft/40 px-5 py-3 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-sm text-slate-700">
+                <span className="font-semibold text-slate-900">{m.tournament.title}</span> is open for registration.
+                <span className="block text-xs text-slate-500">You can play {listJoin(m.groups)}.</span>
+              </p>
+              <Button size="sm" icon={<Trophy size={14} />} onClick={() => onEnter(m.tournament)} className="shrink-0">Register</Button>
+            </li>
           ))}
         </ul>
       )}
@@ -146,7 +190,11 @@ const WEIGH_IN = {
 } as const;
 
 /** One tournament's entries (events) for a student: what each one owes, and each event's Tournament Entry Pass once paid. */
-function TournamentEntries({ student, tournament, entries, onChanged }: { student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[]; onChanged: () => void }) {
+function TournamentEntries({ student, tournament, entries, onChanged, more, onAdd }: {
+  student: MyStudent; tournament: MyRegistration["tournament"]; entries: MyRegistration[]; onChanged: () => void;
+  /** Events the player can still add in this tournament (registration open) */
+  more?: MoreEvents; onAdd: (tournament: Tournament) => void;
+}) {
   const toast = useToast();
   const due = entries.filter((r) => r.paymentStatus === "PENDING").reduce((n, r) => n + r.fee, 0);
   const canPay = tournament.status !== "COMPLETED" && new Date(tournament.startDate) > new Date();
@@ -208,6 +256,18 @@ function TournamentEntries({ student, tournament, entries, onChanged }: { studen
           )}
         </div>
       )}
+      {more && (
+        <div className="mt-2 flex flex-col gap-3 rounded-lg border border-brand/25 bg-brand-soft/50 px-3 py-3 sm:flex-row sm:items-center">
+          <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-slate-800">
+            <Trophy size={16} className="mt-0.5 shrink-0 text-brand" />
+            <span>
+              <span className="font-semibold">You can also play {listJoin(more.groups)}</span>
+              <span className="block text-xs text-slate-600">At your age you can enter more than one event. Add {more.groups.length > 1 ? "them" : "it"} while registration is open.</span>
+            </span>
+          </p>
+          <Button size="sm" icon={<Plus size={14} />} onClick={() => onAdd(more.tournament)} className="shrink-0">Add event{more.groups.length > 1 ? "s" : ""}</Button>
+        </div>
+      )}
     </li>
   );
 }
@@ -266,9 +326,9 @@ function RegistrationDetails({ student: s }: { student: MyStudent }) {
   );
 }
 
-function EnterTournament({ student, onClose }: { student: MyStudent; onClose: () => void }) {
+function EnterTournament({ student, initial, onClose }: { student: MyStudent; initial?: Tournament; onClose: () => void }) {
   const { tournaments, loading, error } = useOpenTournaments();
-  const [chosen, setChosen] = useState<Tournament | null>(null);
+  const [chosen, setChosen] = useState<Tournament | null>(initial ?? null);
 
   return (
     <div className="mx-auto max-w-4xl">
