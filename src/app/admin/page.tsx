@@ -6,6 +6,7 @@ import { useApi } from "@/lib/hooks";
 import type { TournamentListItem } from "@/lib/types";
 import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { TournamentTable } from "@/components/TournamentTable";
+import { MultiCategoryPlayers } from "@/components/MultiCategoryPlayers";
 
 export default function DashboardPage() {
   const { data: tournaments, loading, error } = useApi<TournamentListItem[]>("/tournaments");
@@ -39,6 +40,8 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <MultiCategoryPlayers tournaments={tournaments ?? []} />
 
       <Card>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
