@@ -17,7 +17,14 @@ import { StudentFields, emptyStudent, fromStudent, validateStudent, type Student
 /** The form plus the email on file when editing (keeping it needs no new code). */
 type StudentForm = StudentInput & { savedEmail?: string; id?: string; savedType?: ParticipantType };
 /** GET /students/stats (rejected applications aren't counted) */
-type StudentStats = { total: number; students: number; professionals: number; pending: number };
+type StudentStats = {
+  total: number; students: number; professionals: number; pending: number;
+  /** People whose age this year falls in each group's own band (bands can overlap, e.g. 14 is Sub-Junior and Cadet). */
+  ageGroups?: { name: string; minAge: number; maxAge: number; count: number }[];
+};
+/** "Mini Sub-Junior Age Group 1" → "Mini Sub-Junior 1" */
+const shortGroup = (name: string) => name.replace(" Age Group ", " ");
+const ageRange = (g: { minAge: number; maxAge: number }) => (g.maxAge >= 100 ? `${g.minAge}+ yrs` : `${g.minAge}–${g.maxAge} yrs`);
 
 
 export default function StudentsPage() {
@@ -25,7 +32,8 @@ export default function StudentsPage() {
   const [tab, setTab] = useState<"ALL" | "PENDING">("ALL");
   const [type, setType] = useState<"" | ParticipantType>("");
   const [payment, setPayment] = useState<"" | "UNPAID" | "PAID" | "NOT_ENTERED">("");
-  const filter = [tab === "PENDING" ? "status=PENDING" : "", type ? `type=${type}` : "", payment ? `payment=${payment}` : ""].filter(Boolean).join("&");
+  const [ageGroup, setAgeGroup] = useState("");
+  const filter = [tab === "PENDING" ? "status=PENDING" : "", type ? `type=${type}` : "", payment ? `payment=${payment}` : "", ageGroup ? `ageGroup=${encodeURIComponent(ageGroup)}` : ""].filter(Boolean).join("&");
   // Bumped after approving/rejecting so the list and the counts reload.
   const [version, setVersion] = useState(0);
   // Bumped after adding / editing / deleting from the list: only the counts reload.
@@ -55,7 +63,7 @@ export default function StudentsPage() {
   return (
     <>
       <PeopleList<Student, StudentForm>
-        key={`${tab}-${type}-${payment}-${version}`}
+        key={`${tab}-${type}-${payment}-${ageGroup}-${version}`}
         query={filter ? `&${filter}` : ""}
         onChanged={() => setStatsVersion((v) => v + 1)}
         toolbar={
@@ -81,6 +89,37 @@ export default function StudentsPage() {
               </button>
             ))}
           </div>
+          {/* People per age group (by birth year); clicking one shows and downloads just that group. */}
+          {!!stats?.ageGroups?.length && (
+            <div className="mb-5">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-700">By age group</h2>
+                {ageGroup && <button type="button" onClick={() => setAgeGroup("")} className="text-xs font-semibold text-brand hover:underline">Show all ages</button>}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {stats.ageGroups.map((g) => {
+                  const active = ageGroup === g.name;
+                  return (
+                    <button
+                      key={g.name}
+                      type="button"
+                      onClick={() => setAgeGroup(active ? "" : g.name)}
+                      aria-pressed={active}
+                      title={g.name}
+                      className={cx(
+                        "rounded-xl border bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
+                        active ? "border-brand ring-2 ring-brand/15" : "border-slate-200",
+                      )}
+                    >
+                      <span className="block text-xl font-bold leading-none text-slate-900">{g.count.toLocaleString("en-IN")}</span>
+                      <span className="mt-1 block truncate text-xs font-semibold text-slate-700">{shortGroup(g.name)}</span>
+                      <span className="block text-[11px] text-slate-400">{ageRange(g)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="flex w-full rounded-2xl bg-slate-100 p-1 text-sm sm:inline-flex sm:w-auto">
             {([["ALL", "All students", "All"], ["PENDING", "Waiting for approval", "Waiting"]] as const).map(([id, label, short]) => (
@@ -105,6 +144,10 @@ export default function StudentsPage() {
             <option value="PAID">Paid (nothing owed)</option>
             <option value="NOT_ENTERED">Not entered in any tournament</option>
           </Select>
+          <Select aria-label="Age group" value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} className="sm:w-56">
+            <option value="">All age groups</option>
+            {stats?.ageGroups?.map((g) => <option key={g.name} value={g.name}>{shortGroup(g.name)} ({g.count})</option>)}
+          </Select>
           </div>
           </>
         }
@@ -112,7 +155,7 @@ export default function StudentsPage() {
           <>
             <Button variant="secondary" icon={<Upload size={16} />} onClick={() => setImporting(true)}>Import</Button>
             <Button variant="secondary" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={exportExcel}>
-              {tab === "PENDING" ? "Download waiting list" : "Download Excel"}
+              {tab === "PENDING" ? "Download waiting list" : ageGroup ? `Download ${shortGroup(ageGroup)}` : "Download Excel"}
             </Button>
           </>
         }
