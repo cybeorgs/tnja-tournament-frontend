@@ -7,7 +7,8 @@ import { useApi, useNow } from "@/lib/hooks";
 import { categoryLabel, formatDateTime, rupees } from "@/lib/format";
 import { registrationPhase, type Registration, type TournamentDetail } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Spinner, Textarea } from "@/components/ui";
-import { TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
+import { ALL, TournamentFilters, categoryOptions, distinct, matchesCategory, matchesPlayer, matchesText, tournamentAge, useFilters } from "@/components/TournamentFilters";
+import { EntryStats } from "./EntryStats";
 import { errorMessage, useToast } from "@/components/Toast";
 import { EntryModal } from "./EntryModal";
 import { ImportEntriesModal } from "./ImportEntriesModal";
@@ -59,8 +60,18 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, filters.gender, filters.ageGroup, tournament.startDate]);
+  /** How many events (entries) each player has in this tournament */
+  const eventCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of all) m.set(r.studentId, (m.get(r.studentId) ?? 0) + 1);
+    return m;
+  }, [all]);
+  const eventsOf = (studentId: string) => eventCount.get(studentId) ?? 0;
+  /** Show only players with this many events (0: any) */
+  const [events, setEvents] = useState(0);
   const filtered = all.filter(
     (r) =>
+      (!events || eventsOf(r.studentId) === events) &&
       matchesCategory(filters, r) &&
       matchesPlayer(filters, { age: ageOf(r), state: r.student.state, district: r.student.district }) &&
       matchesText(filters.q, r.student.fullName, r.student.email, r.student.studentNo, r.student.club, r.student.district, r.student.phone),
@@ -183,6 +194,16 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
         </div>
       </div>
       {all.length > 0 && (
+        <EntryStats
+          entries={all.filter((r) => filters.gender === ALL || r.gender === filters.gender)}
+          eventsOf={eventsOf}
+          ageGroup={filters.ageGroup === ALL ? "" : filters.ageGroup}
+          events={events}
+          onAgeGroup={(g) => setFilters({ ...filters, ageGroup: g || ALL, weight: ALL })}
+          onEvents={setEvents}
+        />
+      )}
+      {all.length > 0 && (
         <TournamentFilters
           fields={["search", "gender", "ageGroup", "weight", "age", "state", "district"]}
           filters={filters}
@@ -225,7 +246,14 @@ export function RegistrationsTab({ tournament, onChange }: { tournament: Tournam
               {filtered.map((r) => (
                 <tr key={r.id} className="align-top hover:bg-slate-50/60">
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-800">{r.student.fullName}</p>
+                    <p className="flex flex-wrap items-center gap-1.5 font-semibold text-slate-800">
+                      {r.student.fullName}
+                      {eventsOf(r.studentId) > 1 && (
+                        <span title={all.filter((e) => e.studentId === r.studentId).map((e) => e.ageGroup).join(" + ")}>
+                          <Badge color="blue">{eventsOf(r.studentId)} events</Badge>
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-500" title="Username (registered email)">{r.student.email}</p>
                     <p className="text-xs text-slate-400">{[r.student.studentNo, r.student.club || r.student.district].filter(Boolean).join(" · ")}</p>
                   </td>
